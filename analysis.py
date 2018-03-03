@@ -8,6 +8,8 @@ import requests
 import cv2 as cv
 from PIL import Image
 import argparse
+import numpy as np 
+import sys
 
 from inception import Inception3, inception_v3
 from torchvision.transforms import ToTensor
@@ -98,13 +100,70 @@ def read_first_frame():
 
 def load_in_frame():
 	p = transforms.Resize(299)
-	img = Image.open('/mnt/c/Users/Kevin/Documents/College/ECE4/FYP/python_test_code/photos/frame0.jpg')
-	#img = Image.open(FLAGS.image_file)
-	print(FLAGS.image_file)
+	#img = Image.open('/mnt/c/Users/Kevin/Documents/College/ECE4/FYP/python_test_code/photos/frame0.jpg')
+	img = Image.open(FLAGS.image_file)
+	print('Reading frame at: ',FLAGS.image_file)
 	img = p(img)
 	img = ToTensor()(img).unsqueeze(0)
 	return img
-	
+
+# Get the range of values of image to pick 
+# A good value for quantization
+def get_range_of_values():
+	print('Getting rang of values' )	
+
+# Problemm in encoder numbers in array not being converted to uint8
+# Not one clue why, encoder & decoder working otherwise
+def encode(array, max_num=8, num_bins=128):
+	arr = array.data.numpy().squeeze(0)
+	print('Original size of num in array',sys.getsizeof(arr[0][0][0]))
+	print('Original tye of num in array: ', type(arr[0][0][0]))
+	itop, jtop, ktop = arr.shape
+	for i in range(itop):
+		for j in range(jtop):
+			for k in range(ktop):
+				x= arr[i][j][k]
+				x = min(x,max_num) 
+				x = x/max_num # Number in range 0 -> 1
+				x = x*num_bins # Number in range 0 -> 64
+				x= x.astype('uint8')
+				# x = x.astype(float)
+				# x = np.uint8(x)
+				arr[i][j][k] = x
+	test = arr[0][0][0]		
+	print('encoder test num: ',test)
+	print('Encoder test number type: ',type(test))	
+	print('Encoder test number size: ',sys.getsizeof(test))
+	print(sys.getsizeof(39.0))					
+	return arr		
+
+def decode(array, max_num = 8, num_bins=128 ):
+	arr = array
+	print(arr.shape)
+	itop, jtop, ktop = arr.shape
+	for i in range(itop):
+		for j in range(jtop):
+			for k in range(ktop):
+				z = arr[i][j][k]
+				z = z/num_bins
+				z = z*max_num
+				arr[i][j][k] = z
+	arr = torch.Tensor(arr)	
+	arr = arr.squeeze(0)		
+	print(type(arr))
+	print(arr.shape)
+	print(arr.squeeze(0))
+		
+def get_max_and_min(array):
+	sort = array.data.numpy().argsort().squeeze(0) 
+	flat_arr = array.data.numpy().flatten()
+	maxes = array.data.numpy().argmax()
+	mins = array.data.numpy().argmin()
+	print('Maxes: ',maxes)
+	print('Mins: ',mins)
+
+	print('Max: ', flat_arr[maxes])
+	print('Min: ', flat_arr[mins])
 
 def main():
 
@@ -116,26 +175,30 @@ def main():
 	incept.eval()
 	edge_out = Edge_inception.forward(self = incept, x = Variable(img))
 
-	print('Output of Edge run ')
-	print(edge_out)
+	# print('Original output of Edge run ')
+	# print(edge_out)
 
+	arr = encode(edge_out)
+	# print('Output of encoded edge: ')
+	# print(arr)
+	## END OF EDGE RUN ##
 
-	# Send and encoder here 
-
+	print('Sent to server')
+	## START OF SERVER RUN ## 
+	server_input = decode(arr)
 	#Server run 
 	fc_out = ServerInception.forward(self = incept, x = edge_out)
 	
-	print(fc_out.data.numpy().argsort()[0][0])
+	sort = fc_out.data.numpy().argsort()
 
 	labels = {int(key):value for (key, value)
 		in requests.get(LABELS_URL).json().items()}
 
-	sort = fc_out.data.numpy()
-	print(fc_out.data.numpy().argmax())
 
-	print(labels[fc_out.data.numpy().argmax()]) 
-	print(fc_out[0][fc_out.data.numpy().argmax()])  
-	print(fc_out.data.numpy())    
+	print(labels[fc_out.data.numpy().argmax()])
+	num = FLAGS.num_top_predictions+1
+	for i in range(1,num):
+		print('Number ',i,': ',labels[sort[0][-i]])
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -156,6 +219,12 @@ if __name__ == '__main__':
 		type = str,
 		default='videos/test_vid.mp4',
 		help='Absolute path to the folder storing the video to be analysed'
+	)
+	parser.add_argument(
+		'--num_top_predictions',
+		type = int,
+		default = 5, 
+		help = 'Number of perditions to show'
 	)
 
 	FLAGS, unparsed = parser.parse_known_args()
