@@ -4,8 +4,9 @@ import socket
 import sys
 import pickle
 
-# Create a TCP/IP socket
+
 def send(data ):
+	# Create a TCP/IP socket
 	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 	# Connect the socket to the port where the server is listening
@@ -15,24 +16,24 @@ def send(data ):
 	sock.connect(server_address)
 
 	try:
-	    # Send data
+		# Send data
 
 	    # message = 'This is the message.  It will be repeated.'.encode('utf-8')
 	    # print(sys.stderr, 'sending "%s"' % message)
-	    message = ([1,2,3,4],[1,2,3,4])
-	    message = pickle.dumps(message)
-	    sock.sendall(message)
+		message = (data)
+		message = pickle.dumps(message)
+		sock.sendall(message)
 
-	    # Look for the response
+		# Look for the response
 
-	    amount_received = 0
-	    amount_expected = len(message)
+		amount_received = 0
+		amount_expected = len(message)
 
-	    while amount_received < amount_expected:
-	        data = sock.recv(16)
-	        amount_received += len(data)
-	        print(sys.stderr, 'received "%s"' % data)
+		while amount_received < amount_expected:
+			data = sock.recv(16)
+			amount_received += len(data)
+			#print(sys.stderr, 'received "%s"' % data)
 	finally:
 
-	    print(sys.stderr, 'closing socket')
-	    sock.close()
+		print(sys.stderr, 'closing socket')
+		sock.close()

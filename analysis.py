@@ -14,6 +14,7 @@ import sys
 from inception import Inception3, inception_v3
 from torchvision.transforms import ToTensor
 from torch.autograd import Variable
+from client import send
 
 LABELS_URL = 'https://s3.amazonaws.com/outcome-blog/imagenet/labels.json'
 
@@ -65,7 +66,7 @@ class ServerInception(Inception3):
 		x = self.Mixed_6e(x)
 		# 17 x 17 x 768
 		if self.training and self.aux_logits:
-		    aux = self.AuxLogits(x)
+			aux = self.AuxLogits(x)
 		# 17 x 17 x 768
 		x = self.Mixed_7a(x)
 		# 8 x 8 x 1280
@@ -82,7 +83,7 @@ class ServerInception(Inception3):
 		x = self.fc(x)
 		# 1000 (num_classes)
 		if self.training and self.aux_logits:
-		    return x, aux
+			return x, aux
 		return x
 
 def read_first_frame():
@@ -127,7 +128,7 @@ def encode(array, max_num=8, num_bins=128):
 				x = x/max_num # Number in range 0 -> 1
 				x = x*num_bins # Number in range 0 -> 64
 				x= x.astype('uint8')
-				# x = x.astype(float)
+				#x = x.astype(float)
 				# x = np.uint8(x)
 				arr[i][j][k] = x
 	test = arr[0][0][0]		
@@ -135,24 +136,25 @@ def encode(array, max_num=8, num_bins=128):
 	print('Encoder test number type: ',type(test))	
 	print('Encoder test number size: ',sys.getsizeof(test))
 	print(sys.getsizeof(39.0))					
-	return arr		
+	return arr
 
 def decode(array, max_num = 8, num_bins=128 ):
-	arr = array
-	print(arr.shape)
-	itop, jtop, ktop = arr.shape
-	for i in range(itop):
-		for j in range(jtop):
-			for k in range(ktop):
-				z = arr[i][j][k]
-				z = z/num_bins
-				z = z*max_num
-				arr[i][j][k] = z
-	arr = torch.Tensor(arr)	
-	arr = arr.squeeze(0)		
-	print(type(arr))
-	print(arr.shape)
-	print(arr.squeeze(0))
+    arr = array
+    print(arr.shape)
+    itop, jtop, ktop = arr.shape
+    for i in range(itop):
+        for j in range(jtop):
+            for k in range(ktop):
+                z = arr[i][j][k]
+                z = z/num_bins
+                z = z*max_num
+                arr[i][j][k] = z
+    # print('Type at end of decoding: ', type(arr))
+    # print("Type before unsquueze", type(arr))
+    # print("shape before unsqueeze", arr.shape)
+    arr = np.expand_dims(arr, axis= 0)
+    arr = torch.Tensor(arr)
+    return Variable(arr)
 		
 def get_max_and_min(array):
 	sort = array.data.numpy().argsort().squeeze(0) 
@@ -165,40 +167,78 @@ def get_max_and_min(array):
 	print('Max: ', flat_arr[maxes])
 	print('Min: ', flat_arr[mins])
 
+
+def server_run(input):
+    ## START OF SERVER RUN ##
+    server_input = decode(input)
+    # server_input = Variable(server_input)
+
+    # print('server input', server_input)
+    #
+    # print('Type needed: ', type(edge_out))
+    # print('Type being inputted: ', type(server_input))
+
+    # fc_out = ServerInception.forward(self = incept, x = edge_out) ## this line seems to work
+    incept = torchvision.models.inception_v3(pretrained=True)
+    incept.eval()
+    fc_out = ServerInception.forward(self=incept, x=server_input)
+
+    sort = fc_out.data.numpy().argsort()
+
+    labels = {int(key): value for (key, value)
+              in requests.get(LABELS_URL).json().items()}
+
+    print(labels[fc_out.data.numpy().argmax()])
+    num = FLAGS.num_top_predictions + 1
+    for i in range(1, num):
+        print('Number ', i, ': ', labels[sort[0][-i]])
+
+
 def main():
 
-	read_first_frame()
-	img = load_in_frame()
+    read_first_frame()
+    img = load_in_frame()
 
-	# edge run 
-	incept = torchvision.models.inception_v3(pretrained=True)
-	incept.eval()
-	edge_out = Edge_inception.forward(self = incept, x = Variable(img))
+    # edge run
+    incept = torchvision.models.inception_v3(pretrained=True)
+    incept.eval()
+    edge_out = Edge_inception.forward(self = incept, x = Variable(img))
 
-	# print('Original output of Edge run ')
-	# print(edge_out)
+    print('Original output of Edge run ',edge_out)
 
-	arr = encode(edge_out)
-	# print('Output of encoded edge: ')
-	# print(arr)
-	## END OF EDGE RUN ##
-
-	print('Sent to server')
-	## START OF SERVER RUN ## 
-	server_input = decode(arr)
-	#Server run 
-	fc_out = ServerInception.forward(self = incept, x = edge_out)
-	
-	sort = fc_out.data.numpy().argsort()
-
-	labels = {int(key):value for (key, value)
-		in requests.get(LABELS_URL).json().items()}
+    encoded_edge_output = encode(edge_out)
+    print('Output of encoded edge: ')
+    print(encoded_edge_output)
+    ## END OF EDGE RUN ##
+    print('Sent to server')
+    send(encoded_edge_output)
 
 
-	print(labels[fc_out.data.numpy().argmax()])
-	num = FLAGS.num_top_predictions+1
-	for i in range(1,num):
-		print('Number ',i,': ',labels[sort[0][-i]])
+    ## START OF SERVER RUN ##
+    #server_run(encoded_edge_output)
+
+
+    # server_input = decode(encoded_edge_output)
+    # # server_input = Variable(server_input)
+    #
+    # print('server input', server_input)
+    #
+    # print('Type needed: ',type(edge_out) )
+    # print('Type being inputted: ', type(server_input))
+    #
+    # # fc_out = ServerInception.forward(self = incept, x = edge_out) ## this line seems to work
+    # fc_out = ServerInception.forward(self = incept, x = server_input)
+    #
+    # sort = fc_out.data.numpy().argsort()
+    #
+    # labels = {int(key):value for (key, value)
+		# in requests.get(LABELS_URL).json().items()}
+    #
+    #
+    # print(labels[fc_out.data.numpy().argmax()])
+    # num = FLAGS.num_top_predictions+1
+    # for i in range(1,num):
+    #     print('Number ',i,': ',labels[sort[0][-i]])
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
