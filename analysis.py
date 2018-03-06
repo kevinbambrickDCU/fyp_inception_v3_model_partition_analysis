@@ -8,7 +8,7 @@ import requests
 import cv2 as cv
 from PIL import Image
 import argparse
-import numpy as np 
+import numpy as np
 import sys
 
 from inception import Inception3, inception_v3
@@ -23,11 +23,11 @@ FLAGS = None
 class Edge_inception(Inception3):
 	def forward(self , x):
 		print('overridden')
-		# if self.transform_input:
-		#           x = x.clone()
-		#           x[:, 0] = x[:, 0] * (0.229 / 0.5) + (0.485 - 0.5) / 0.5
-		#           x[:, 1] = x[:, 1] * (0.224 / 0.5) + (0.456 - 0.5) / 0.5
-		#           x[:, 2] = x[:, 2] * (0.225 / 0.5) + (0.406 - 0.5) / 0.5
+		if self.transform_input:
+			x = x.clone()
+			x[:, 0] = x[:, 0] * (0.229 / 0.5) + (0.485 - 0.5) / 0.5
+			x[:, 1] = x[:, 1] * (0.224 / 0.5) + (0.456 - 0.5) / 0.5
+			x[:, 2] = x[:, 2] * (0.225 / 0.5) + (0.406 - 0.5) / 0.5
 		# 299 x 299 x 3
 		x = self.Conv2d_1a_3x3(x)
 		# 149 x 149 x 32
@@ -43,7 +43,7 @@ class Edge_inception(Inception3):
 		# 71 x 71 x 192
 		x = F.max_pool2d(x, kernel_size=3, stride=2)
 		return x
- 
+
 
 class ServerInception(Inception3):
 	def forward(self, x):
@@ -100,145 +100,135 @@ def read_first_frame():
 	count += 1
 
 def load_in_frame():
-	p = transforms.Resize(299)
-	#img = Image.open('/mnt/c/Users/Kevin/Documents/College/ECE4/FYP/python_test_code/photos/frame0.jpg')
+	# # v1
+	# p = transforms.Resize(299)
+	# #img = Image.open('/mnt/c/Users/Kevin/Documents/College/ECE4/FYP/python_test_code/photos/frame0.jpg')
+	# img = Image.open(FLAGS.image_file)
+	# print('Reading frame at: ',FLAGS.image_file)
+	# img = p(img)
+	# img = ToTensor()(img).unsqueeze(0)
+	# # return img
+	# print('Type of original image: ', type(img))
+
+
+	normalize = transforms.Normalize(
+		mean=[0.485, 0.456, 0.406],
+		std=[0.229, 0.224, 0.225]
+	)
+	preprocess = transforms.Compose([
+		transforms.Resize(299),
+		transforms.ToTensor(),
+		normalize
+	])
 	img = Image.open(FLAGS.image_file)
-	print('Reading frame at: ',FLAGS.image_file)
-	img = p(img)
-	img = ToTensor()(img).unsqueeze(0)
+	img = preprocess(img)
+	img = img.unsqueeze(0)
+	print('Type of new image:  ',type(img))
 	return img
+
+
+# print('Reading frame at: ',FLAGS.image_file)
+# img = p(img)
 
 # Get the range of values of image to pick 
 # A good value for quantization
 def get_range_of_values():
-	print('Getting rang of values' )	
+	print('Getting rang of values' )
 
 # Problemm in encoder numbers in array not being converted to uint8
 # Not one clue why, encoder & decoder working otherwise
 def encode(array, max_num=8, num_bins=128):
 	arr = array.data.numpy().squeeze(0)
-	print('Original size of num in array',sys.getsizeof(arr[0][0][0]))
-	print('Original tye of num in array: ', type(arr[0][0][0]))
+	squeezed_array = arr
+	print('typeof the array to be encoded: ',type(array)) # Variable
+	print('original size fo the array ', sys.getsizeof(array)) # 80
+	print('Original size of num in array',sys.getsizeof(arr[0][0][0])) #28
+	print('Original tye of num in array: ', type(arr[0][0][0])) # numpy.float32
 	itop, jtop, ktop = arr.shape
 	for i in range(itop):
 		for j in range(jtop):
 			for k in range(ktop):
-				x= arr[i][j][k]
-				x = min(x,max_num) 
+				x = arr[i][j][k]
+				x = min(x,max_num)
 				x = x/max_num # Number in range 0 -> 1
-				x = x*num_bins # Number in range 0 -> 64
-				x= x.astype('uint8')
+				x = x*num_bins # Number in range 0 -> 128
+				#x = x.astype(float)
 				#x = x.astype(float)
 				# x = np.uint8(x)
 				arr[i][j][k] = x
-	test = arr[0][0][0]		
-	print('encoder test num: ',test)
-	print('Encoder test number type: ',type(test))	
-	print('Encoder test number size: ',sys.getsizeof(test))
-	print(sys.getsizeof(39.0))					
+	# arr = arr.astype('uint8')
+	# arr = np.array(arr, dtype=np.uint8)
+	# arr = Variable(torch.Tensor(arr)) # Dont know why this decreases bit size
+	test = arr[0][0][0]
+	print('Array output: ', arr)
+	print('Encoded siz of the array: ', sys.getsizeof(arr)) #80 # if torch this value is 60
+	print('Encoded type of an array: ',type(arr))# Variable
 	return arr
 
+
 def decode(array, max_num = 8, num_bins=128 ):
-    arr = array
-    print(arr.shape)
-    itop, jtop, ktop = arr.shape
-    for i in range(itop):
-        for j in range(jtop):
-            for k in range(ktop):
-                z = arr[i][j][k]
-                z = z/num_bins
-                z = z*max_num
-                arr[i][j][k] = z
-    # print('Type at end of decoding: ', type(arr))
-    # print("Type before unsquueze", type(arr))
-    # print("shape before unsqueeze", arr.shape)
-    arr = np.expand_dims(arr, axis= 0)
-    arr = torch.Tensor(arr)
-    return Variable(arr)
-		
+	arr = array
+	print(arr.shape)
+	itop, jtop, ktop = arr.shape
+	for i in range(itop):
+		for j in range(jtop):
+			for k in range(ktop):
+				z = arr[i][j][k]
+				z = z/num_bins
+				z = z*max_num
+				arr[i][j][k] = z
+	arr = np.expand_dims(arr, axis= 0)
+	arr = torch.Tensor(arr)
+	return Variable(arr)
+
 def get_max_and_min(array):
-	sort = array.data.numpy().argsort().squeeze(0) 
+	sort = array.data.numpy().argsort().squeeze(0)
 	flat_arr = array.data.numpy().flatten()
 	maxes = array.data.numpy().argmax()
 	mins = array.data.numpy().argmin()
 	print('Maxes: ',maxes)
 	print('Mins: ',mins)
-
 	print('Max: ', flat_arr[maxes])
 	print('Min: ', flat_arr[mins])
 
 
 def server_run(input):
-    ## START OF SERVER RUN ##
-    server_input = decode(input)
-    # server_input = Variable(server_input)
+	## START OF SERVER RUN ##
+	server_input = decode(input)
+	# fc_out = ServerInception.forward(self = incept, x = edge_out) ## this line seems to work
+	incept = torchvision.models.inception_v3(pretrained=True)
+	incept.eval()
+	fc_out = ServerInception.forward(self=incept, x=server_input)
 
-    # print('server input', server_input)
-    #
-    # print('Type needed: ', type(edge_out))
-    # print('Type being inputted: ', type(server_input))
+	sort = fc_out.data.numpy().argsort()
 
-    # fc_out = ServerInception.forward(self = incept, x = edge_out) ## this line seems to work
-    incept = torchvision.models.inception_v3(pretrained=True)
-    incept.eval()
-    fc_out = ServerInception.forward(self=incept, x=server_input)
+	labels = {int(key): value for (key, value)
+			  in requests.get(LABELS_URL).json().items()}
 
-    sort = fc_out.data.numpy().argsort()
-
-    labels = {int(key): value for (key, value)
-              in requests.get(LABELS_URL).json().items()}
-
-    print(labels[fc_out.data.numpy().argmax()])
-    num = FLAGS.num_top_predictions + 1
-    for i in range(1, num):
-        print('Number ', i, ': ', labels[sort[0][-i]])
+	print(labels[fc_out.data.numpy().argmax()])
+	# num = FLAGS.num_top_predictions + 1
+	for i in range(1, 6):
+		print('Number ', i, ': ', labels[sort[0][-i]])
 
 
 def main():
 
-    read_first_frame()
-    img = load_in_frame()
+	read_first_frame()
+	img = load_in_frame()
 
-    # edge run
-    incept = torchvision.models.inception_v3(pretrained=True)
-    incept.eval()
-    edge_out = Edge_inception.forward(self = incept, x = Variable(img))
+	# edge run
+	incept = torchvision.models.inception_v3(pretrained=True)
+	incept.eval()
+	edge_out = Edge_inception.forward(self = incept, x = Variable(img))
 
-    print('Original output of Edge run ',edge_out)
+	# print('Original output of Edge run ',edge_out)
 
-    encoded_edge_output = encode(edge_out)
-    print('Output of encoded edge: ')
-    print(encoded_edge_output)
-    ## END OF EDGE RUN ##
-    print('Sent to server')
-    send(encoded_edge_output)
-
-
-    ## START OF SERVER RUN ##
-    #server_run(encoded_edge_output)
-
-
-    # server_input = decode(encoded_edge_output)
-    # # server_input = Variable(server_input)
-    #
-    # print('server input', server_input)
-    #
-    # print('Type needed: ',type(edge_out) )
-    # print('Type being inputted: ', type(server_input))
-    #
-    # # fc_out = ServerInception.forward(self = incept, x = edge_out) ## this line seems to work
-    # fc_out = ServerInception.forward(self = incept, x = server_input)
-    #
-    # sort = fc_out.data.numpy().argsort()
-    #
-    # labels = {int(key):value for (key, value)
-		# in requests.get(LABELS_URL).json().items()}
-    #
-    #
-    # print(labels[fc_out.data.numpy().argmax()])
-    # num = FLAGS.num_top_predictions+1
-    # for i in range(1,num):
-    #     print('Number ',i,': ',labels[sort[0][-i]])
+	encoded_edge_output = encode(edge_out)
+	# print('Output of encoded edge: ')
+	# print(encoded_edge_output)
+	## END OF EDGE RUN ##
+	print('Sent to server')
+	send(encoded_edge_output)
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -263,8 +253,8 @@ if __name__ == '__main__':
 	parser.add_argument(
 		'--num_top_predictions',
 		type = int,
-		default = 5, 
-		help = 'Number of perditions to show'
+		default = 5,
+		help = 'Number of predictions to show'
 	)
 
 	FLAGS, unparsed = parser.parse_known_args()

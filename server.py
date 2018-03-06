@@ -21,6 +21,8 @@ received = ''
 
 arr = bytearray()
 
+size = 0
+
 while connect:
     # Wait for a connection
     print(sys.stderr, 'waiting for a connection')
@@ -33,6 +35,7 @@ while connect:
         # Receive the data in small chunks and retransmit it
         while True:
             data = connection.recv(1024)
+            size = size + len(data)
             # received = received + (data.decode('utf-8'))
             arr.extend(data)
             print(sys.stderr, 'received "%s"' % data)
@@ -48,9 +51,12 @@ while connect:
         # Clean up the connection
         connection.close()    
 
-print('Recieved: ', arr)
+print('Size of data recieved: ', size)
+
+#print('Recieved: ', arr)
 
 arr = pickle.loads(arr)
-print(arr)
+#print(arr)
+
 
 server_run(arr)
