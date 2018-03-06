@@ -139,6 +139,7 @@ def get_range_of_values():
 # Not one clue why, encoder & decoder working otherwise
 def encode(array, max_num=8, num_bins=128):
 	arr = array.data.numpy().squeeze(0)
+	print('original array: ', arr)
 	squeezed_array = arr
 	print('typeof the array to be encoded: ',type(array)) # Variable
 	print('original size fo the array ', sys.getsizeof(array)) # 80
@@ -152,12 +153,15 @@ def encode(array, max_num=8, num_bins=128):
 				x = min(x,max_num)
 				x = x/max_num # Number in range 0 -> 1
 				x = x*num_bins # Number in range 0 -> 128
+				# x = int(x)
+				#x = x.astype('uint8')
 				#x = x.astype(float)
 				#x = x.astype(float)
 				# x = np.uint8(x)
 				arr[i][j][k] = x
-	# arr = arr.astype('uint8')
-	# arr = np.array(arr, dtype=np.uint8)
+	#arr = arr.astype('uint8')
+	#arr = np.array(arr, dtype=np.uint8)
+	#arr = arr.tolist()
 	# arr = Variable(torch.Tensor(arr)) # Dont know why this decreases bit size
 	test = arr[0][0][0]
 	print('Array output: ', arr)
@@ -181,6 +185,22 @@ def decode(array, max_num = 8, num_bins=128 ):
 	arr = torch.Tensor(arr)
 	return Variable(arr)
 
+def decode_list(array, max_num = 8, num_bins=128 ):
+	arr = array
+	arr = np.array(arr)
+	print(arr.shape)
+	itop, jtop, ktop = arr.shape
+	for i in range(itop):
+		for j in range(jtop):
+			for k in range(ktop):
+				z = arr[i][j][k]
+				z = z / num_bins
+				z = z * max_num
+				arr[i][j][k] = z
+	arr = np.expand_dims(arr, axis=0)
+	arr = torch.Tensor(arr)
+	return Variable(arr)
+
 def get_max_and_min(array):
 	sort = array.data.numpy().argsort().squeeze(0)
 	flat_arr = array.data.numpy().flatten()
@@ -195,6 +215,7 @@ def get_max_and_min(array):
 def server_run(input):
 	## START OF SERVER RUN ##
 	server_input = decode(input)
+	print('Type after encoding: ', type(server_input))
 	# fc_out = ServerInception.forward(self = incept, x = edge_out) ## this line seems to work
 	incept = torchvision.models.inception_v3(pretrained=True)
 	incept.eval()

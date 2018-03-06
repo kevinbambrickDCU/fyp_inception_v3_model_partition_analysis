@@ -38,9 +38,9 @@ while connect:
             size = size + len(data)
             # received = received + (data.decode('utf-8'))
             arr.extend(data)
-            print(sys.stderr, 'received "%s"' % data)
+            #print(sys.stderr, 'received "%s"' % data)
             if data:
-                print(sys.stderr, 'sending data back to the client')
+                #print(sys.stderr, 'sending data back to the client')
                 connection.sendall(data)
             else:
                 print(sys.stderr, 'no more data from', client_address)
@@ -56,7 +56,7 @@ print('Size of data recieved: ', size)
 #print('Recieved: ', arr)
 
 arr = pickle.loads(arr)
-#print(arr)
+#print('array recieved and loaded: ',arr)
 
 
 server_run(arr)
