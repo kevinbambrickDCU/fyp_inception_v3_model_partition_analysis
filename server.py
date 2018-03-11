@@ -1,6 +1,6 @@
 import socket
 import sys
-import pickle
+import numpy as np
 
 from analysis import server_run
 
@@ -14,20 +14,16 @@ sock.bind(server_address)
 
 # Listen for incoming connections
 sock.listen(1)
-
 connect = True
 
-received = ''
-
-arr = bytearray()
-
-size = 0
-
-while connect:
+while True:
     # Wait for a connection
+    received = ''
+    arr = bytearray()
+    size = 0
+
     print(sys.stderr, 'waiting for a connection')
     connection, client_address = sock.accept()
-
 
     try:
         print(sys.stderr, 'connection from', client_address)
@@ -40,7 +36,7 @@ while connect:
             arr.extend(data)
             #print(sys.stderr, 'received "%s"' % data)
             if data:
-                #print(sys.stderr, 'sending data back to the client')
+                print(sys.stderr, 'sending data back to the client')
                 connection.sendall(data)
             else:
                 print(sys.stderr, 'no more data from', client_address)
@@ -49,14 +45,9 @@ while connect:
             
     finally:
         # Clean up the connection
-        connection.close()    
+        connection.close()
+        print('Size of data recieved: ', size)
+        print('array recieved and loaded: ', arr)
 
-print('Size of data recieved: ', size)
+        server_run(arr)
 
-#print('Recieved: ', arr)
-
-arr = pickle.loads(arr)
-#print('array recieved and loaded: ',arr)
-
-
-server_run(arr)

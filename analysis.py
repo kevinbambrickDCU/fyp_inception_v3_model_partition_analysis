@@ -7,18 +7,14 @@ import torchvision
 import requests
 import cv2 as cv
 from PIL import Image
-import argparse
 import numpy as np
 import sys
+import json
 
 from inception import Inception3, inception_v3
-from torchvision.transforms import ToTensor
 from torch.autograd import Variable
-from client import send
 
 LABELS_URL = 'https://s3.amazonaws.com/outcome-blog/imagenet/labels.json'
-
-FLAGS = None
 
 class Edge_inception(Inception3):
 	def forward(self , x):
@@ -86,7 +82,8 @@ class ServerInception(Inception3):
 			return x, aux
 		return x
 
-def read_first_frame():
+
+def read_first_frame(FLAGS):
 	print('Reading Frame')
 	vidcap = cv.VideoCapture(FLAGS.video_file)
 	success, image = vidcap.read()
@@ -99,7 +96,7 @@ def read_first_frame():
 	cv.imwrite('frames/' + "frame%d.jpg" % count, image)  # save frame as JPEG file
 	count += 1
 
-def load_in_frame():
+def load_in_frame(FLAGS):
 	# # v1
 	# p = transforms.Resize(299)
 	# #img = Image.open('/mnt/c/Users/Kevin/Documents/College/ECE4/FYP/python_test_code/photos/frame0.jpg')
@@ -109,7 +106,6 @@ def load_in_frame():
 	# img = ToTensor()(img).unsqueeze(0)
 	# # return img
 	# print('Type of original image: ', type(img))
-
 
 	normalize = transforms.Normalize(
 		mean=[0.485, 0.456, 0.406],
@@ -127,79 +123,32 @@ def load_in_frame():
 	return img
 
 
-# print('Reading frame at: ',FLAGS.image_file)
-# img = p(img)
-
-# Get the range of values of image to pick 
+# Get the range of values of image to pick
 # A good value for quantization
 def get_range_of_values():
 	print('Getting rang of values' )
 
-# Problemm in encoder numbers in array not being converted to uint8
-# Not one clue why, encoder & decoder working otherwise
-def encode(array, max_num=8, num_bins=128):
+
+def encode(array, max_num=8, num_bins=6):
 	arr = array.data.numpy().squeeze(0)
 	print('original array: ', arr)
-	squeezed_array = arr
-	print('typeof the array to be encoded: ',type(array)) # Variable
-	print('original size fo the array ', sys.getsizeof(array)) # 80
-	print('Original size of num in array',sys.getsizeof(arr[0][0][0])) #28
-	print('Original tye of num in array: ', type(arr[0][0][0])) # numpy.float32
-	itop, jtop, ktop = arr.shape
-	for i in range(itop):
-		for j in range(jtop):
-			for k in range(ktop):
-				x = arr[i][j][k]
-				x = min(x,max_num)
-				x = x/max_num # Number in range 0 -> 1
-				x = x*num_bins # Number in range 0 -> 128
-				# x = int(x)
-				#x = x.astype('uint8')
-				#x = x.astype(float)
-				#x = x.astype(float)
-				# x = np.uint8(x)
-				arr[i][j][k] = x
-	#arr = arr.astype('uint8')
-	#arr = np.array(arr, dtype=np.uint8)
-	#arr = arr.tolist()
-	# arr = Variable(torch.Tensor(arr)) # Dont know why this decreases bit size
-	test = arr[0][0][0]
+
+	arr = (np.minimum(arr,max_num)/8)*num_bins
+	arr = np.round(arr).astype(np.uint8)
+
 	print('Array output: ', arr)
-	print('Encoded siz of the array: ', sys.getsizeof(arr)) #80 # if torch this value is 60
-	print('Encoded type of an array: ',type(arr))# Variable
-	return arr
+	print('Encoded siz of the array: ', sys.getsizeof(arr))
+	return arr.tobytes()
 
 
-def decode(array, max_num = 8, num_bins=128 ):
-	arr = array
-	print(arr.shape)
-	itop, jtop, ktop = arr.shape
-	for i in range(itop):
-		for j in range(jtop):
-			for k in range(ktop):
-				z = arr[i][j][k]
-				z = z/num_bins
-				z = z*max_num
-				arr[i][j][k] = z
+def decode(array, max_num = 8, num_bins=6, dim1 = 192, dim2 = 35, dim3 = 64):
+	arr = np.reshape(array, [dim1, dim2, dim3])
+	arr = (arr.astype(np.float32)/num_bins)*max_num
 	arr = np.expand_dims(arr, axis= 0)
 	arr = torch.Tensor(arr)
+
 	return Variable(arr)
 
-def decode_list(array, max_num = 8, num_bins=128 ):
-	arr = array
-	arr = np.array(arr)
-	print(arr.shape)
-	itop, jtop, ktop = arr.shape
-	for i in range(itop):
-		for j in range(jtop):
-			for k in range(ktop):
-				z = arr[i][j][k]
-				z = z / num_bins
-				z = z * max_num
-				arr[i][j][k] = z
-	arr = np.expand_dims(arr, axis=0)
-	arr = torch.Tensor(arr)
-	return Variable(arr)
 
 def get_max_and_min(array):
 	sort = array.data.numpy().argsort().squeeze(0)
@@ -213,70 +162,31 @@ def get_max_and_min(array):
 
 
 def server_run(input):
-	## START OF SERVER RUN ##
 	server_input = decode(input)
-	print('Type after encoding: ', type(server_input))
-	# fc_out = ServerInception.forward(self = incept, x = edge_out) ## this line seems to work
+	print('decoded array: ', server_input)
+
 	incept = torchvision.models.inception_v3(pretrained=True)
 	incept.eval()
 	fc_out = ServerInception.forward(self=incept, x=server_input)
 
 	sort = fc_out.data.numpy().argsort()
+	#download labels
+	# labels = {int(key): value for (key, value)
+	# 		  in requests.get(LABELS_URL).json().items()}
 
+	#read labels from file
 	labels = {int(key): value for (key, value)
-			  in requests.get(LABELS_URL).json().items()}
+			  in json.load(open('config/labels.json')).items()}
 
+	match = False
 	print(labels[fc_out.data.numpy().argmax()])
 	# num = FLAGS.num_top_predictions + 1
 	for i in range(1, 6):
 		print('Number ', i, ': ', labels[sort[0][-i]])
+		if(sort[0][-i] == 105):
+			match = True
 
-
-def main():
-
-	read_first_frame()
-	img = load_in_frame()
-
-	# edge run
-	incept = torchvision.models.inception_v3(pretrained=True)
-	incept.eval()
-	edge_out = Edge_inception.forward(self = incept, x = Variable(img))
-
-	# print('Original output of Edge run ',edge_out)
-
-	encoded_edge_output = encode(edge_out)
-	# print('Output of encoded edge: ')
-	# print(encoded_edge_output)
-	## END OF EDGE RUN ##
-	print('Sent to server')
-	send(encoded_edge_output)
-
-if __name__ == '__main__':
-	parser = argparse.ArgumentParser()
-	parser.add_argument(
-		'--image_file',
-		type=str,
-		default='frames/frame0.jpg',
-		help='Absolute path to image file.'
-	)
-	parser.add_argument(
-		'--frame_file',
-		type=str,
-		default='frames/',
-		help='Absolute path to the folder storing the frames'
-	)
-	parser.add_argument(
-		'--video_file',
-		type = str,
-		default='videos/test_vid.mp4',
-		help='Absolute path to the folder storing the video to be analysed'
-	)
-	parser.add_argument(
-		'--num_top_predictions',
-		type = int,
-		default = 5,
-		help = 'Number of predictions to show'
-	)
-
-	FLAGS, unparsed = parser.parse_known_args()
-	main()
+	if(match):
+		print('ground truth in top5')
+	else:
+		print('Classification incorrect')
