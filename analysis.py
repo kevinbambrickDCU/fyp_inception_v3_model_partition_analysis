@@ -96,7 +96,21 @@ def read_first_frame(FLAGS):
 	cv.imwrite('frames/' + "frame%d.jpg" % count, image)  # save frame as JPEG file
 	count += 1
 
-def load_in_frame(FLAGS):
+
+def read_in_all_frames(fileName):
+	print('Reading Frames from: ',fileName)
+	vidcap = cv.VideoCapture(fileName)
+	success, image = vidcap.read()
+	count = 0
+	success = True
+	while success:
+		success, image = vidcap.read()
+		print('Read a new frame: ', success)
+		cv.imwrite("frames/frame%d.jpg" % count, image)  # save frame as JPEG file
+		count += 1
+	return count
+
+def load_in_frame(path_to_image):
 	# # v1
 	# p = transforms.Resize(299)
 	# #img = Image.open('/mnt/c/Users/Kevin/Documents/College/ECE4/FYP/python_test_code/photos/frame0.jpg')
@@ -116,12 +130,29 @@ def load_in_frame(FLAGS):
 		transforms.ToTensor(),
 		normalize
 	])
-	img = Image.open(FLAGS.image_file)
+	img = Image.open(path_to_image)
 	img = preprocess(img)
 	img = img.unsqueeze(0)
-	print('Type of new image:  ',type(img))
+	# print('Type of new image:  ',type(img))
 	return img
 
+
+def read_in_frame_number(frameNumber):
+
+	normalize = transforms.Normalize(
+		mean=[0.485, 0.456, 0.406],
+		std=[0.229, 0.224, 0.225]
+	)
+	preprocess = transforms.Compose([
+		transforms.Resize(299),
+		transforms.ToTensor(),
+		normalize
+	])
+	img = Image.open('frames/frame%d.jpg' %frameNumber)
+	img = preprocess(img)
+	img = img.unsqueeze(0)
+	# print('Type of new image:  ', type(img))
+	return img
 
 # Get the range of values of image to pick
 # A good value for quantization
@@ -129,26 +160,42 @@ def get_range_of_values():
 	print('Getting rang of values' )
 
 
-def encode(array, max_num=8, num_bins=6):
+def encode(array, max_num=8, num_bins=64):
+	print('Encoding..')
 	arr = array.data.numpy().squeeze(0)
-	print('original array: ', arr)
+	# print('original array: ', arr)
 
 	arr = (np.minimum(arr,max_num)/8)*num_bins
-	arr = np.round(arr).astype(np.uint8)
+	arr = np.round(arr)
 
-	print('Array output: ', arr)
-	print('Encoded siz of the array: ', sys.getsizeof(arr))
-	return arr.tobytes()
+	# print('Array output: ', arr)
+	# print('Encoded siz of the array: ', sys.getsizeof(arr))
+
+	return arr
 
 
-def decode(array, max_num = 8, num_bins=6, dim1 = 192, dim2 = 35, dim3 = 64):
-	arr = np.reshape(array, [dim1, dim2, dim3])
-	arr = (arr.astype(np.float32)/num_bins)*max_num
+def compute_delta(previous_array, current_array, delta_value):
+	print('Computing deltas')
+	delta_array = previous_array - current_array
+	itop, jtop, ktop = delta_array.shape
+	for i in range(itop):
+		for j in range(jtop):
+			for k in range(ktop):
+				if(delta_array[i][j][k] in range(-delta_value,delta_value)):
+					delta_array[i][j][k] = 0
+	return delta_array
+
+def decode_delta(previous_array, delta_array):
+	print('decoding deltas')
+	return previous_array - delta_array
+
+def decode(array, max_num = 8, num_bins=64):
+	print('Decoding')
+	arr = (array.astype(np.float32)/num_bins)*max_num
 	arr = np.expand_dims(arr, axis= 0)
 	arr = torch.Tensor(arr)
 
 	return Variable(arr)
-
 
 def get_max_and_min(array):
 	sort = array.data.numpy().argsort().squeeze(0)
@@ -163,7 +210,7 @@ def get_max_and_min(array):
 
 def server_run(input):
 	server_input = decode(input)
-	print('decoded array: ', server_input)
+	# print('decoded array: ', server_input)
 
 	incept = torchvision.models.inception_v3(pretrained=True)
 	incept.eval()
@@ -188,5 +235,7 @@ def server_run(input):
 
 	if(match):
 		print('ground truth in top5')
+		return True
 	else:
 		print('Classification incorrect')
+		return False

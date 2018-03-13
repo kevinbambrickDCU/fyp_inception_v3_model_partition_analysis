@@ -2,7 +2,7 @@ import socket
 import sys
 import numpy as np
 
-from analysis import server_run
+from analysis import server_run, decode_delta
 
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -15,6 +15,9 @@ sock.bind(server_address)
 # Listen for incoming connections
 sock.listen(1)
 connect = True
+failCount = 0
+passCount = 0
+previous_array = None
 
 while True:
     # Wait for a connection
@@ -36,7 +39,7 @@ while True:
             arr.extend(data)
             #print(sys.stderr, 'received "%s"' % data)
             if data:
-                print(sys.stderr, 'sending data back to the client')
+                # print(sys.stderr, 'sending data back to the client')
                 connection.sendall(data)
             else:
                 print(sys.stderr, 'no more data from', client_address)
@@ -47,7 +50,24 @@ while True:
         # Clean up the connection
         connection.close()
         print('Size of data recieved: ', size)
-        print('array recieved and loaded: ', arr)
+        # print('array recieved and loaded: ', arr)
 
-        server_run(arr)
+        arr = np.frombuffer(arr, dtype=np.int8)
+        arr = np.reshape(arr, [192, 35, 64])
+        if previous_array is not None:
+            # arr = arr.astype(np.float32)
+            print(arr.dtype)
+            # previous_array = np.reshape(previous_array, [192,35,64])
+            arr = decode_delta(previous_array, arr)
+
+        previous_array = arr
+        result = server_run(arr)
+        if(result):
+            passCount += 1
+        else:
+            failCount += 1
+
+        print('Total checked: ', passCount+failCount)
+        print('Number of correct classifictaions: ', passCount)
+        print('Number Failed: ', failCount)
 
