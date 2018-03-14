@@ -15,46 +15,68 @@ FLAGS = None
 use_delta = True
 
 def main():
-	# classify_one_image('frames/frame296.jpg')
+	# classify_one_image('frames/frame1.jpg')
 	# classify_one_image('../imagnet/val/n01739381/ILSVRC2012_val_00022816.JPEG')
+	# classify_one_image('../imagnet/val/n01847000/ILSVRC2012_val_00000415.JPEG')
 	classify_video(FLAGS.video_file)
-	# classify_video_without_splitting()
+	# classify_video_without_splitting(FLAGS.video_file)
+	# classify_video('videos/test_vid_2.mp4')
 
 
 def classify_video(path_to_file):
 	print('Classifying Video frame by fame')
 	#dumps frames into file
-	number_of_frames = analysis.read_in_all_frames(path_to_file)
+	# number_of_frames = analysis.read_in_all_frames(path_to_file)
 	# number_of_frames = 299
+	number_of_frames = analysis.read_in_frame_per_second(path_to_file)
 	PREVIOUS_ARRAY = None
+
+	# PREVIOUS_ARRAY = [0]
 	for i in range(number_of_frames):
 		img = analysis.read_in_frame_number(i)
 
 		incept = torchvision.models.inception_v3(pretrained=True)
 		incept.eval()
-		edge_out = analysis.Edge_inception.forward(self=incept, x=Variable(img))
+		# 7 is cut at F.max_pool2d
+		edge_out = analysis.SplitComputation.forward(self = incept,
+													 x= Variable(img),
+													 start = 0,
+													 end=7)
 
+		#new code compute delta then encode WIP
+		# if PREVIOUS_ARRAY is not None and use_delta is True:
+		# 	input_to_compute_deltas = edge_out
+		# 	delta_edge_output = analysis.compute_delta(PREVIOUS_ARRAY,input_to_compute_deltas, 0.5)
+		# 	print(delta_edge_output)
+        #
+		# 	delta_encoded_edge_output = analysis.encode(delta_edge_output,max_num=8,num_bins=64)
+		# 	send(delta_encoded_edge_output)
+		# 	# PREVIOUS_ARRAY = input_to_compute_deltas
+		# else:
+		# 	input_to_encoder = edge_out
+		# 	encoded_edge_output = analysis.encode(input_to_encoder,max_num=8,num_bins=64)
+		# 	send(encoded_edge_output)
+		# 	PREVIOUS_ARRAY = edge_out
+
+
+		## ENCODES THEN COMPUTES DELTAS METHOD####
 		encoded_edge_output = analysis.encode(edge_out)
+		print(encoded_edge_output)
 
 		if PREVIOUS_ARRAY is not None and use_delta is True:
 			input_to_compute_deltas = encoded_edge_output
-			delta_encoded_edge_output = analysis.compute_delta(PREVIOUS_ARRAY,input_to_compute_deltas, 1)
+			delta_encoded_edge_output = analysis.compute_delta(PREVIOUS_ARRAY,input_to_compute_deltas, 2)
+			print(delta_encoded_edge_output)
 			send(delta_encoded_edge_output)
 
 			# New code for storing previous
 			PREVIOUS_ARRAY = PREVIOUS_ARRAY - delta_encoded_edge_output
 		else:
 			send(encoded_edge_output)
-
 			# new code
 			PREVIOUS_ARRAY = encoded_edge_output
 
 		print('Previous array: ', PREVIOUS_ARRAY)
-		# send(encoded_edge_output.tobytes())
-		# send(encoded_edge_output)
-
-		# PREVIOUS_ARRAY = encoded_edge_output
-
 
 def classify_one_image(path_to_image):
 	print('Classifying one image')
@@ -66,14 +88,14 @@ def classify_one_image(path_to_image):
 	edge_out = analysis.Edge_inception.forward(self=incept, x=Variable(img))
 
 	encoded_edge_output = analysis.encode(edge_out)
-	print('shaep of data: ', encoded_edge_output.shape)
+	print('shape of data: ', encoded_edge_output.shape)
 
 	send(encoded_edge_output)
 
 
-def classify_video_without_splitting():
+def classify_video_without_splitting(path_to_file):
 	# number_of_frames = 299
-	number_of_frames = analysis.read_in_all_frames(FLAGS.video_file)
+	number_of_frames = analysis.read_in_all_frames(path_to_file)
 	passCount = 0
 	failCount = 0
 	for i in range(number_of_frames):
@@ -95,6 +117,7 @@ def classify_video_without_splitting():
 		match = False
 		print(labels[fc_out.data.numpy().argmax()])
 		# num = FLAGS.num_top_predictions + 1
+
 		for i in range(1, 6):
 			print('Number ', i, ': ', labels[sort[0][-i]])
 			if (sort[0][-i] == 105):
@@ -113,6 +136,7 @@ def classify_video_without_splitting():
 
 
 def send(data):
+	print('shape: ',data.shape)
 	data = data.astype('int8').tobytes()
 	print('Data being sent to server')
 	# Create a TCP/IP socket

@@ -10,76 +10,62 @@ from PIL import Image
 import numpy as np
 import sys
 import json
+import math
 
 from inception import Inception3, inception_v3
 from torch.autograd import Variable
 
 LABELS_URL = 'https://s3.amazonaws.com/outcome-blog/imagenet/labels.json'
 
-class Edge_inception(Inception3):
-	def forward(self , x):
+class SplitComputation(Inception3):
+	def forward(self, x,start = 0,end = None):
 		print('overridden')
-		if self.transform_input:
+
+		if self.transform_input and (start == 0):
 			x = x.clone()
 			x[:, 0] = x[:, 0] * (0.229 / 0.5) + (0.485 - 0.5) / 0.5
 			x[:, 1] = x[:, 1] * (0.224 / 0.5) + (0.456 - 0.5) / 0.5
 			x[:, 2] = x[:, 2] * (0.225 / 0.5) + (0.406 - 0.5) / 0.5
-		# 299 x 299 x 3
-		x = self.Conv2d_1a_3x3(x)
-		# 149 x 149 x 32
-		x = self.Conv2d_2a_3x3(x)
-		# 147 x 147 x 32	
-		x = self.Conv2d_2b_3x3(x)
-		# 147 x 147 x 64
-		x = F.max_pool2d(x, kernel_size=3, stride=2)
-		# 73 x 73 x 64
-		x = self.Conv2d_3b_1x1(x)
-		# 73 x 73 x 80
-		x = self.Conv2d_4a_3x3(x)
-		# 71 x 71 x 192
-		x = F.max_pool2d(x, kernel_size=3, stride=2)
-		return x
 
+		def my_pool(x):
+			return F.max_pool2d(x, kernel_size=3, stride=2)
 
-class ServerInception(Inception3):
-	def forward(self, x):
-		print('Server overridden')
-		# 35 x 35 x 192
-		x = self.Mixed_5b(x)
-		# 35 x 35 x 256
-		x = self.Mixed_5c(x)
-		# 35 x 35 x 288
-		x = self.Mixed_5d(x)
-		# 35 x 35 x 288
-		x = self.Mixed_6a(x)
-		# 17 x 17 x 768
-		x = self.Mixed_6b(x)
-		# 17 x 17 x 768
-		x = self.Mixed_6c(x)
-		# 17 x 17 x 768
-		x = self.Mixed_6d(x)
-		# 17 x 17 x 768
-		x = self.Mixed_6e(x)
-		# 17 x 17 x 768
-		if self.training and self.aux_logits:
-			aux = self.AuxLogits(x)
-		# 17 x 17 x 768
-		x = self.Mixed_7a(x)
-		# 8 x 8 x 1280
-		x = self.Mixed_7b(x)
-		# 8 x 8 x 2048
-		x = self.Mixed_7c(x)
-		# 8 x 8 x 2048
-		x = F.avg_pool2d(x, kernel_size=8)
-		# 1 x 1 x 2048
-		x = F.dropout(x, training=self.training)
-		# 1 x 1 x 2048
-		x = x.view(x.size(0), -1)
-		# 2048
-		x = self.fc(x)
-		# 1000 (num_classes)
-		if self.training and self.aux_logits:
-			return x, aux
+		def my_pool2(x):
+			return F.avg_pool2d(x, kernel_size=8)
+
+		def my_dropout(x):
+			return F.dropout(x, training=self.training)
+
+		def my_view(x):
+			return x.view(x.size(0), -1)
+
+		layers = [
+			self.Conv2d_1a_3x3,
+			self.Conv2d_2a_3x3,
+			self.Conv2d_2b_3x3,
+			my_pool,
+			self.Conv2d_3b_1x1,
+			self.Conv2d_4a_3x3,
+			lambda x: F.max_pool2d(x, kernel_size=3, stride=2),
+			self.Mixed_5b,
+			self.Mixed_5c,
+			self.Mixed_5d,
+			self.Mixed_6a,
+			self.Mixed_6b,
+			self.Mixed_6c,
+			self.Mixed_6d,
+			self.Mixed_6e,
+			self.Mixed_7a,
+			self.Mixed_7b,
+			self.Mixed_7c,
+			my_pool2,
+			my_dropout,
+			my_view,
+			self.fc,
+		]
+
+		for layer in layers[start:end]:
+			x = layer(x)
 		return x
 
 
@@ -103,9 +89,25 @@ def read_in_all_frames(fileName):
 	success = True
 	while success:
 		success, image = vidcap.read()
-		print('Read a new frame: ', success)
+		print('Read a new frame: ', success, ' :', count)
 		cv.imwrite("frames/frame%d.jpg" % count, image)  # save frame as JPEG file
 		count += 1
+	return count
+
+def read_in_frame_per_second(fileName):
+	cap = cv.VideoCapture(fileName)
+	frameRate = cap.get(5)  # frame rate
+	count = 0
+	while (cap.isOpened()):
+		frameId = cap.get(1)  # current frame number
+		ret, frame = cap.read()
+		if (ret != True):
+			break
+		if (frameId % math.floor(frameRate) == 0):
+			filename = ("frames/frame%d.jpg" % count)
+			cv.imwrite(filename, frame)
+		count += 1
+	cap.release()
 	return count
 
 
@@ -115,7 +117,7 @@ def load_in_frame(path_to_image):
 		std=[0.229, 0.224, 0.225]
 	)
 	preprocess = transforms.Compose([
-		transforms.Resize(299),
+		transforms.Resize((299,299)),
 		transforms.ToTensor(),
 		normalize
 	])
@@ -132,7 +134,7 @@ def read_in_frame_number(frameNumber):
 		std=[0.229, 0.224, 0.225]
 	)
 	preprocess = transforms.Compose([
-		transforms.Resize(299),
+		transforms.Resize((299,299)),
 		transforms.ToTensor(),
 		normalize
 	])
@@ -150,7 +152,7 @@ def get_range_of_values():
 	print('Getting rang of values' )
 
 
-def encode(array, max_num=8, num_bins=128):
+def encode(array, max_num=8, num_bins=64):
 	print('Encoding..')
 	arr = array.data.numpy().squeeze(0)
 	arr = (np.minimum(arr,max_num)/8)*num_bins
@@ -162,12 +164,8 @@ def encode(array, max_num=8, num_bins=128):
 def compute_delta(previous_array, current_array, delta_value):
 	print('Computing deltas')
 	delta_array = previous_array - current_array
-	itop, jtop, ktop = delta_array.shape
-	for i in range(itop):
-		for j in range(jtop):
-			for k in range(ktop):
-				if(delta_array[i][j][k] in range(-delta_value,delta_value)):
-					delta_array[i][j][k] = 0
+	delta_array[abs(delta_array)>delta_value]=0
+	print(delta_array)
 	return delta_array
 
 
@@ -176,7 +174,7 @@ def decode_delta(previous_array, delta_array):
 	return previous_array - delta_array
 
 
-def decode(array, max_num = 8, num_bins=128):
+def decode(array, max_num = 8, num_bins=64):
 	print('Decoding')
 	arr = (array.astype(np.float32)/num_bins)*max_num
 	arr = np.expand_dims(arr, axis= 0)
@@ -201,7 +199,8 @@ def server_run(input):
 
 	incept = torchvision.models.inception_v3(pretrained=True)
 	incept.eval()
-	fc_out = ServerInception.forward(self=incept, x=server_input)
+	fc_out = SplitComputation.forward(self = incept, x= server_input,
+									 start =7, end=None)
 
 	sort = fc_out.data.numpy().argsort()
 	#download labels

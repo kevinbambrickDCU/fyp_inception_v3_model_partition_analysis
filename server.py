@@ -53,14 +53,13 @@ while True:
         print('Size of data recieved: ', size)
 
         arr = np.frombuffer(arr, dtype=np.int8)
-        # arr = np.reshape(arr, [192, 35, 64])
-        arr = np.reshape(arr, [192, 37, 35]) # don't understand why this is diffirent
-                                            # when using imagnet data
+        arr = np.reshape(arr, [192, 35, 35])
         if previous_array is not None and use_delta is True:
             arr = decode_delta(previous_array, arr)
 
+        print(arr)
         previous_array = arr
-        print('previous array: ', previous_array)
+        # print('previous array: ', previous_array)
         result = server_run(arr)
         if(result):
             passCount += 1
