@@ -7,21 +7,25 @@ import sys
 import analysis
 import inception
 import json
+import numpy as np
 
 from torch.autograd import Variable
 
 FLAGS = None
+use_delta = True
 
 def main():
-	# classify_one_image('frames/frame45.jpg')
-	classify_video()
+	# classify_one_image('frames/frame296.jpg')
+	# classify_one_image('../imagnet/val/n01739381/ILSVRC2012_val_00022816.JPEG')
+	classify_video(FLAGS.video_file)
 	# classify_video_without_splitting()
 
-def classify_video():
+
+def classify_video(path_to_file):
 	print('Classifying Video frame by fame')
 	#dumps frames into file
-	# number_of_frames = analysis.read_in_all_frames(FLAGS.video_file)
-	number_of_frames = 299
+	number_of_frames = analysis.read_in_all_frames(path_to_file)
+	# number_of_frames = 299
 	PREVIOUS_ARRAY = None
 	for i in range(number_of_frames):
 		img = analysis.read_in_frame_number(i)
@@ -32,26 +36,44 @@ def classify_video():
 
 		encoded_edge_output = analysis.encode(edge_out)
 
-		#delta encoding not implimented in server yet
-        #
-		if PREVIOUS_ARRAY is not None:
-			print('Current Arry: ', (encoded_edge_output))
+		if PREVIOUS_ARRAY is not None and use_delta is True:
 			input_to_compute_deltas = encoded_edge_output
-			print('previous: ', (PREVIOUS_ARRAY))
-			delta_encoded_edge_output = analysis.compute_delta(PREVIOUS_ARRAY,input_to_compute_deltas, 2)
-			print('delta: ',(delta_encoded_edge_output))
+			delta_encoded_edge_output = analysis.compute_delta(PREVIOUS_ARRAY,input_to_compute_deltas, 1)
 			send(delta_encoded_edge_output)
+
+			# New code for storing previous
+			PREVIOUS_ARRAY = PREVIOUS_ARRAY - delta_encoded_edge_output
 		else:
 			send(encoded_edge_output)
 
+			# new code
+			PREVIOUS_ARRAY = encoded_edge_output
+
+		print('Previous array: ', PREVIOUS_ARRAY)
 		# send(encoded_edge_output.tobytes())
 		# send(encoded_edge_output)
 
-		PREVIOUS_ARRAY = encoded_edge_output
+		# PREVIOUS_ARRAY = encoded_edge_output
+
+
+def classify_one_image(path_to_image):
+	print('Classifying one image')
+	# analysis.read_first_frame(FLAGS)
+	img = analysis.load_in_frame(path_to_image)
+
+	incept = torchvision.models.inception_v3(pretrained=True)
+	incept.eval()
+	edge_out = analysis.Edge_inception.forward(self=incept, x=Variable(img))
+
+	encoded_edge_output = analysis.encode(edge_out)
+	print('shaep of data: ', encoded_edge_output.shape)
+
+	send(encoded_edge_output)
+
 
 def classify_video_without_splitting():
-	number_of_frames = 299
-	# number_of_frames = analysis.read_in_all_frames(FLAGS.video_file)
+	# number_of_frames = 299
+	number_of_frames = analysis.read_in_all_frames(FLAGS.video_file)
 	passCount = 0
 	failCount = 0
 	for i in range(number_of_frames):
@@ -90,19 +112,6 @@ def classify_video_without_splitting():
 		print('Number Failed: ', failCount)
 
 
-def classify_one_image(path_to_image):
-	print('Classifying one image')
-	# analysis.read_first_frame(FLAGS)
-	img = analysis.load_in_frame(path_to_image)
-
-	incept = torchvision.models.inception_v3(pretrained=True)
-	incept.eval()
-	edge_out = analysis.Edge_inception.forward(self=incept, x=Variable(img))
-
-	encoded_edge_output = analysis.encode(edge_out)
-
-	send(encoded_edge_output)
-
 def send(data):
 	data = data.astype('int8').tobytes()
 	print('Data being sent to server')
@@ -129,6 +138,7 @@ def send(data):
 
 		print(sys.stderr, 'closing socket')
 		sock.close()
+
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()

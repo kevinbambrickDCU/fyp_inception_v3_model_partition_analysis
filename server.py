@@ -18,6 +18,7 @@ connect = True
 failCount = 0
 passCount = 0
 previous_array = None
+use_delta = True
 
 while True:
     # Wait for a connection
@@ -50,17 +51,16 @@ while True:
         # Clean up the connection
         connection.close()
         print('Size of data recieved: ', size)
-        # print('array recieved and loaded: ', arr)
 
         arr = np.frombuffer(arr, dtype=np.int8)
-        arr = np.reshape(arr, [192, 35, 64])
-        if previous_array is not None:
-            # arr = arr.astype(np.float32)
-            print(arr.dtype)
-            # previous_array = np.reshape(previous_array, [192,35,64])
+        # arr = np.reshape(arr, [192, 35, 64])
+        arr = np.reshape(arr, [192, 37, 35]) # don't understand why this is diffirent
+                                            # when using imagnet data
+        if previous_array is not None and use_delta is True:
             arr = decode_delta(previous_array, arr)
 
         previous_array = arr
+        print('previous array: ', previous_array)
         result = server_run(arr)
         if(result):
             passCount += 1
