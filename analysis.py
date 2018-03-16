@@ -5,7 +5,7 @@ import torch.utils.model_zoo as model_zoo
 import torchvision.transforms as transforms
 import torchvision
 import requests
-import cv2 as cv
+import cv2
 from PIL import Image
 import numpy as np
 import sys
@@ -69,33 +69,65 @@ class SplitComputation(Inception3):
 		return x
 
 
+def read_in_frame_from_video(path_to_video, frameNumber, write=False):
+	cap = cv2.VideoCapture(path_to_video)
+
+	if not cap.isOpened():
+		print("could not open :", path_to_video)
+		return
+
+	cap.set(cv2.CAP_PROP_POS_FRAMES, frameNumber - 1)
+	res, frame = cap.read()
+
+	if write:
+		cv2.imwrite('frames/' + "frame%d.jpg" % frameNumber, frame)
+
+	normalize = transforms.Normalize(
+		mean=[0.485, 0.456, 0.406],
+		std=[0.229, 0.224, 0.225]
+	)
+	preprocess = transforms.Compose([
+		transforms.Resize((299, 299)),
+		transforms.ToTensor(),
+		normalize
+	])
+
+	# img = Image.open('frames/frame%d.jpg' % frameNumber)
+	img = Image.fromarray(frame)
+	img = preprocess(img)
+	img = img.unsqueeze(0)
+
+	cap.release()
+	cv2.destroyAllWindows()
+	return img
+
 def read_first_frame(FLAGS):
 	print('Reading Frame')
-	vidcap = cv.VideoCapture(FLAGS.video_file)
+	vidcap = cv2.VideoCapture(FLAGS.video_file)
 	success, image = vidcap.read()
 	count = 0
 	success = True
 	success, image = vidcap.read()
 	print('Read a new frame: ', success)
-	cv.imwrite('frames/' + "frame%d.jpg" % count, image)  # save frame as JPEG file
+	cv2.imwrite('frames/' + "frame%d.jpg" % count, image)  # save frame as JPEG file
 	count += 1
 
 
 def read_in_all_frames(fileName):
 	print('Reading Frames from: ',fileName)
-	vidcap = cv.VideoCapture(fileName)
+	vidcap = cv2.VideoCapture(fileName)
 	success, image = vidcap.read()
 	count = 0
 	success = True
 	while success:
 		success, image = vidcap.read()
 		print('Read a new frame: ', success, ' :', count)
-		cv.imwrite("frames/frame%d.jpg" % count, image)  # save frame as JPEG file
+		cv2.imwrite("frames/frame%d.jpg" % count, image)  # save frame as JPEG file
 		count += 1
 	return count
 
 def read_in_frame_per_second(fileName):
-	cap = cv.VideoCapture(fileName)
+	cap = cv2.VideoCapture(fileName)
 	frameRate = cap.get(5)  # frame rate
 	count = 0
 	while (cap.isOpened()):
@@ -105,7 +137,7 @@ def read_in_frame_per_second(fileName):
 			break
 		if (frameId % math.floor(frameRate) == 0):
 			filename = ("frames/frame%d.jpg" % count)
-			cv.imwrite(filename, frame)
+			cv2.imwrite(filename, frame)
 		count += 1
 	cap.release()
 	return count
@@ -128,7 +160,7 @@ def load_in_frame(path_to_image):
 	return img
 
 
-def read_in_frame_number(frameNumber):
+def read_in_frame_number_from_file(frameNumber):
 	normalize = transforms.Normalize(
 		mean=[0.485, 0.456, 0.406],
 		std=[0.229, 0.224, 0.225]
@@ -152,20 +184,20 @@ def get_range_of_values():
 	print('Getting rang of values' )
 
 
-def encode(array, max_num=8, num_bins=64):
+def encode(array, min_num=-8,max_num=8, num_bins=64):
 	print('Encoding..')
-	arr = array.data.numpy().squeeze(0)
-	arr = (np.minimum(arr,max_num)/8)*num_bins
+	arr = array
+	arr = np.clip(arr,min_num,max_num)
+	arr = (arr/(max_num-min_num)) # -0.5 -> 0.5
+	arr = (arr*num_bins)
 	arr = np.round(arr)
 
 	return arr
 
-
 def compute_delta(previous_array, current_array, delta_value):
 	print('Computing deltas')
 	delta_array = previous_array - current_array
-	delta_array[abs(delta_array)>delta_value]=0
-	print(delta_array)
+	delta_array[abs(delta_array)<delta_value]=0
 	return delta_array
 
 
@@ -174,13 +206,12 @@ def decode_delta(previous_array, delta_array):
 	return previous_array - delta_array
 
 
-def decode(array, max_num = 8, num_bins=64):
+def decode(array,min_num = -8, max_num = 8, num_bins=64):
 	print('Decoding')
-	arr = (array.astype(np.float32)/num_bins)*max_num
+	arr = (array/num_bins)*(max_num-min_num)
 	arr = np.expand_dims(arr, axis= 0)
-	arr = torch.Tensor(arr)
 
-	return Variable(arr)
+	return arr
 
 
 def get_max_and_min(array):
@@ -195,11 +226,9 @@ def get_max_and_min(array):
 
 
 def server_run(input):
-	server_input = decode(input)
-
 	incept = torchvision.models.inception_v3(pretrained=True)
 	incept.eval()
-	fc_out = SplitComputation.forward(self = incept, x= server_input,
+	fc_out = SplitComputation.forward(self = incept, x= Variable(input),
 									 start =7, end=None)
 
 	sort = fc_out.data.numpy().argsort()
@@ -212,8 +241,8 @@ def server_run(input):
 			  in json.load(open('config/labels.json')).items()}
 
 	match = False
+
 	print(labels[fc_out.data.numpy().argmax()])
-	# num = FLAGS.num_top_predictions + 1
 	for i in range(1, 6):
 		print('Number ', i, ': ', labels[sort[0][-i]])
 		if(sort[0][-i] == 105):

@@ -20,20 +20,22 @@ def main():
 	# classify_one_image('../imagnet/val/n01847000/ILSVRC2012_val_00000415.JPEG')
 	classify_video(FLAGS.video_file)
 	# classify_video_without_splitting(FLAGS.video_file)
-	# classify_video('videos/test_vid_2.mp4')
+	# classify_video('videos/test_vid_3.mp4')
 
 
 def classify_video(path_to_file):
 	print('Classifying Video frame by fame')
 	#dumps frames into file
 	# number_of_frames = analysis.read_in_all_frames(path_to_file)
-	# number_of_frames = 299
-	number_of_frames = analysis.read_in_frame_per_second(path_to_file)
+	number_of_frames = 299
+	# number_of_frames = analysis.read_in_frame_per_second(path_to_file)
 	PREVIOUS_ARRAY = None
 
-	# PREVIOUS_ARRAY = [0]
+
 	for i in range(number_of_frames):
-		img = analysis.read_in_frame_number(i)
+		# img = analysis.read_in_frame_number_from_file(i)
+
+		img = analysis.read_in_frame_from_video(path_to_file, i, write=True)
 
 		incept = torchvision.models.inception_v3(pretrained=True)
 		incept.eval()
@@ -43,40 +45,22 @@ def classify_video(path_to_file):
 													 start = 0,
 													 end=7)
 
-		#new code compute delta then encode WIP
-		# if PREVIOUS_ARRAY is not None and use_delta is True:
-		# 	input_to_compute_deltas = edge_out
-		# 	delta_edge_output = analysis.compute_delta(PREVIOUS_ARRAY,input_to_compute_deltas, 0.5)
-		# 	print(delta_edge_output)
-        #
-		# 	delta_encoded_edge_output = analysis.encode(delta_edge_output,max_num=8,num_bins=64)
-		# 	send(delta_encoded_edge_output)
-		# 	# PREVIOUS_ARRAY = input_to_compute_deltas
-		# else:
-		# 	input_to_encoder = edge_out
-		# 	encoded_edge_output = analysis.encode(input_to_encoder,max_num=8,num_bins=64)
-		# 	send(encoded_edge_output)
-		# 	PREVIOUS_ARRAY = edge_out
-
-
-		## ENCODES THEN COMPUTES DELTAS METHOD####
-		encoded_edge_output = analysis.encode(edge_out)
-		print(encoded_edge_output)
-
 		if PREVIOUS_ARRAY is not None and use_delta is True:
-			input_to_compute_deltas = encoded_edge_output
-			delta_encoded_edge_output = analysis.compute_delta(PREVIOUS_ARRAY,input_to_compute_deltas, 2)
-			print(delta_encoded_edge_output)
+			input_to_compute_deltas = edge_out.data.numpy().squeeze(0)
+			delta_edge_output = analysis.compute_delta(PREVIOUS_ARRAY,input_to_compute_deltas, 0.1)
+
+			delta_encoded_edge_output = analysis.encode(delta_edge_output,min_num=-8,
+														 max_num=8,num_bins=64)
+			print("data being sent: ",delta_encoded_edge_output)
 			send(delta_encoded_edge_output)
-
-			# New code for storing previous
-			PREVIOUS_ARRAY = PREVIOUS_ARRAY - delta_encoded_edge_output
+			PREVIOUS_ARRAY = PREVIOUS_ARRAY - analysis.decode(delta_encoded_edge_output).squeeze(0)
 		else:
+			input_to_encoder = edge_out.data.numpy().squeeze(0)
+			encoded_edge_output = analysis.encode(input_to_encoder,min_num=-8,
+												   max_num=8,num_bins=64)
 			send(encoded_edge_output)
-			# new code
-			PREVIOUS_ARRAY = encoded_edge_output
+			PREVIOUS_ARRAY = analysis.decode(encoded_edge_output).squeeze(0)
 
-		print('Previous array: ', PREVIOUS_ARRAY)
 
 def classify_one_image(path_to_image):
 	print('Classifying one image')
@@ -85,7 +69,9 @@ def classify_one_image(path_to_image):
 
 	incept = torchvision.models.inception_v3(pretrained=True)
 	incept.eval()
-	edge_out = analysis.Edge_inception.forward(self=incept, x=Variable(img))
+
+	edge_out= analysis.SplitComputation.forward(self =incept, x = Variable(img),
+												start=0, end=7)
 
 	encoded_edge_output = analysis.encode(edge_out)
 	print('shape of data: ', encoded_edge_output.shape)
@@ -98,8 +84,9 @@ def classify_video_without_splitting(path_to_file):
 	number_of_frames = analysis.read_in_all_frames(path_to_file)
 	passCount = 0
 	failCount = 0
+	failed_frames ={}
 	for i in range(number_of_frames):
-		img = analysis.read_in_frame_number(i)
+		img = analysis.read_in_frame_number_from_file(i)
 
 		incept = torchvision.models.inception_v3(pretrained=True)
 		incept.eval()
@@ -129,14 +116,16 @@ def classify_video_without_splitting(path_to_file):
 		else:
 			print('Classification incorrect')
 			failCount += 1
+			failed_frames[failCount-1] =failCount+passCount
 
 		print('Total checked: ', passCount + failCount)
 		print('Number of correct classifictaions: ', passCount)
 		print('Number Failed: ', failCount)
-
+	print(failed_frames)
 
 def send(data):
 	print('shape: ',data.shape)
+	print('Type being sent: ', type(data))
 	data = data.astype('int8').tobytes()
 	print('Data being sent to server')
 	# Create a TCP/IP socket

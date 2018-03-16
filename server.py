@@ -1,8 +1,9 @@
 import socket
 import sys
 import numpy as np
+import torch
 
-from analysis import server_run, decode_delta
+from analysis import server_run, decode_delta, decode
 
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -54,13 +55,20 @@ while True:
 
         arr = np.frombuffer(arr, dtype=np.int8)
         arr = np.reshape(arr, [192, 35, 35])
-        if previous_array is not None and use_delta is True:
-            arr = decode_delta(previous_array, arr)
 
-        print(arr)
-        previous_array = arr
-        # print('previous array: ', previous_array)
-        result = server_run(arr)
+        # NEW CODE: DECODE THEN ADD DELTAS
+        # print('Recieved: ', arr)
+        if previous_array is not None and use_delta is True:
+            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=64)
+            delta_decoded_arr = decode_delta(previous_array, decoded_arr)
+            print(delta_decoded_arr)
+            previous_array = delta_decoded_arr
+            result = server_run(torch.Tensor(delta_decoded_arr))
+        else:
+            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=64)
+            previous_array = decoded_arr
+            result = server_run(torch.Tensor(decoded_arr))
+
         if(result):
             passCount += 1
         else:
