@@ -17,6 +17,7 @@ from torch.autograd import Variable
 
 LABELS_URL = 'https://s3.amazonaws.com/outcome-blog/imagenet/labels.json'
 
+
 class SplitComputation(Inception3):
 	def forward(self, x,start = 0,end = None):
 		print('overridden')
@@ -143,7 +144,7 @@ def read_in_frame_per_second(fileName):
 	return count
 
 
-def load_in_frame(path_to_image):
+def load_in_image(path_to_image):
 	normalize = transforms.Normalize(
 		mean=[0.485, 0.456, 0.406],
 		std=[0.229, 0.224, 0.225]

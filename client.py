@@ -8,8 +8,11 @@ import analysis
 import inception
 import json
 import numpy as np
+import RunLengthEncoding as rle
+import pickle
 
 from torch.autograd import Variable
+from dahuffman import HuffmanCodec
 
 FLAGS = None
 use_delta = True
@@ -65,7 +68,7 @@ def classify_video(path_to_file):
 def classify_one_image(path_to_image):
 	print('Classifying one image')
 	# analysis.read_first_frame(FLAGS)
-	img = analysis.load_in_frame(path_to_image)
+	img = analysis.load_in_image(path_to_image)
 
 	incept = torchvision.models.inception_v3(pretrained=True)
 	incept.eval()
@@ -73,7 +76,10 @@ def classify_one_image(path_to_image):
 	edge_out= analysis.SplitComputation.forward(self =incept, x = Variable(img),
 												start=0, end=7)
 
-	encoded_edge_output = analysis.encode(edge_out)
+	input_to_encoder = edge_out.data.numpy().squeeze(0)
+	encoded_edge_output = analysis.encode(input_to_encoder,min_num=-8,
+										  max_num=8,num_bins=64)
+
 	print('shape of data: ', encoded_edge_output.shape)
 
 	send(encoded_edge_output)
@@ -126,7 +132,23 @@ def classify_video_without_splitting(path_to_file):
 def send(data):
 	print('shape: ',data.shape)
 	print('Type being sent: ', type(data))
-	data = data.astype('int8').tobytes()
+	# data = data.astype('int8').tobytes()
+
+
+	# new code for huffman
+	arr = data.astype('int8')
+	codec  = HuffmanCodec.from_data(arr.flatten())
+	encoded = codec.encode(arr.flatten())
+	print('size of data being sent: ', len(encoded))
+	data = (encoded, codec)
+	data = pickle.dumps(data)
+
+	#new code for rle does not work
+	# data = data.astype('int8')
+	# starts, lengths, values = rle.rlencode(data.flatten())
+	# data = zip(starts, lengths, values)
+	# data = np.array(list(data)).astype('int8').tobytes()
+
 	print('Data being sent to server')
 	# Create a TCP/IP socket
 	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

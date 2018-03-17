@@ -2,6 +2,9 @@ import socket
 import sys
 import numpy as np
 import torch
+import pickle
+import RunLengthEncoding as rle
+from dahuffman import HuffmanCodec
 
 from analysis import server_run, decode_delta, decode
 
@@ -53,7 +56,26 @@ while True:
         connection.close()
         print('Size of data recieved: ', size)
 
-        arr = np.frombuffer(arr, dtype=np.int8)
+        # new huffman code
+        arr = pickle.loads(arr)
+        codec = arr[1]
+        decoded = codec.decode(arr[0])
+        arr = decoded
+
+
+        # arr = np.frombuffer(arr, dtype=np.int8)
+
+
+        # new rle code does not work
+        # arr = arr.tolist()
+        # print(type(arr))
+        # rec = list(zip(*arr))
+        # start = rec[0]
+        # length = rec[1]
+        # values = rec[2]
+        # arr = rle.rldecode(start, length, values)
+
+
         arr = np.reshape(arr, [192, 35, 35])
 
         # NEW CODE: DECODE THEN ADD DELTAS
