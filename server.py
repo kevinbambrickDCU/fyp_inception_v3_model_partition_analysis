@@ -3,9 +3,8 @@ import sys
 import numpy as np
 import torch
 import pickle
-import RunLengthEncoding as rle
-from dahuffman import HuffmanCodec
 
+from dahuffman import HuffmanCodec
 from analysis import server_run, decode_delta, decode
 
 # Create a TCP/IP socket
@@ -23,6 +22,11 @@ failCount = 0
 passCount = 0
 previous_array = None
 use_delta = True
+
+with open('huffman_encoding_config/delta_hist.pickle', 'rb') as handle:
+    delta_hist = pickle.load(handle)
+codec = HuffmanCodec.from_frequencies(delta_hist)
+
 
 while True:
     # Wait for a connection
@@ -56,11 +60,18 @@ while True:
         connection.close()
         print('Size of data recieved: ', size)
 
-        # new huffman code
-        arr = pickle.loads(arr)
-        codec = arr[1]
-        decoded = codec.decode(arr[0])
+        # huffman code
+        # arr = pickle.loads(arr)
+        # codec = arr[1]
+        # decoded = codec.decode(arr[0])
+        # arr = decoded
+
+
+        #new huffman code
+        decoded = codec.decode(arr)
         arr = decoded
+
+
 
 
         # arr = np.frombuffer(arr, dtype=np.int8)
@@ -81,13 +92,13 @@ while True:
         # NEW CODE: DECODE THEN ADD DELTAS
         # print('Recieved: ', arr)
         if previous_array is not None and use_delta is True:
-            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=64)
+            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=60)
             delta_decoded_arr = decode_delta(previous_array, decoded_arr)
-            print(delta_decoded_arr)
+            # print(delta_decoded_arr)
             previous_array = delta_decoded_arr
             result = server_run(torch.Tensor(delta_decoded_arr))
         else:
-            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=64)
+            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=60)
             previous_array = decoded_arr
             result = server_run(torch.Tensor(decoded_arr))
 

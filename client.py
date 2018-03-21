@@ -8,8 +8,10 @@ import analysis
 import inception
 import json
 import numpy as np
-import RunLengthEncoding as rle
 import pickle
+import os
+import random
+import shutil
 
 from torch.autograd import Variable
 from dahuffman import HuffmanCodec
@@ -17,31 +19,51 @@ from dahuffman import HuffmanCodec
 FLAGS = None
 use_delta = True
 
+path_to_imagnet = '../imagnet/val/'
+huff_freq = None
+
 def main():
+	delete_previous_frames(FLAGS.frame_file)
 	# classify_one_image('frames/frame1.jpg')
 	# classify_one_image('../imagnet/val/n01739381/ILSVRC2012_val_00022816.JPEG')
 	# classify_one_image('../imagnet/val/n01847000/ILSVRC2012_val_00000415.JPEG')
-	classify_video(FLAGS.video_file)
-	# classify_video_without_splitting(FLAGS.video_file)
-	# classify_video('videos/test_vid_3.mp4')
+	classify_video(FLAGS.video_file, write=True)
+	# classify_video_without_splitting(FLAGS.video_file, 105)
+	# classify_video_without_splitting("videos/n02509815/panda_5.mp4", 388)
+	# classify_video('videos/n03452741/piano_2.mp4', write=True)
 
 
-def classify_video(path_to_file):
+	# classify_on_random_images(path_to_imagnet,1)
+
+def delete_previous_frames(path_to_frames):
+	for the_file in os.listdir(path_to_frames):
+		file_path = os.path.join(path_to_frames, the_file)
+		try:
+			if os.path.isfile(file_path):
+				os.unlink(file_path)
+			# elif os.path.isdir(file_path): shutil.rmtree(file_path)
+		except Exception as e:
+			print(e)
+
+
+def classify_video(path_to_file, write =False):
 	print('Classifying Video frame by fame')
 	#dumps frames into file
 	# number_of_frames = analysis.read_in_all_frames(path_to_file)
-	number_of_frames = 299
+	# number_of_frames = 299
+	fps , number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
 	# number_of_frames = analysis.read_in_frame_per_second(path_to_file)
 	PREVIOUS_ARRAY = None
 
+	incept = torchvision.models.inception_v3(pretrained=True)
+	incept.eval()
 
 	for i in range(number_of_frames):
 		# img = analysis.read_in_frame_number_from_file(i)
 
-		img = analysis.read_in_frame_from_video(path_to_file, i, write=True)
+		img = analysis.read_in_frame_from_video(path_to_file, i*fps, write=write)
 
-		incept = torchvision.models.inception_v3(pretrained=True)
-		incept.eval()
+
 		# 7 is cut at F.max_pool2d
 		edge_out = analysis.SplitComputation.forward(self = incept,
 													 x= Variable(img),
@@ -53,16 +75,39 @@ def classify_video(path_to_file):
 			delta_edge_output = analysis.compute_delta(PREVIOUS_ARRAY,input_to_compute_deltas, 0.1)
 
 			delta_encoded_edge_output = analysis.encode(delta_edge_output,min_num=-8,
-														 max_num=8,num_bins=64)
-			print("data being sent: ",delta_encoded_edge_output)
+														 max_num=8,num_bins=60)
+			# print("data being sent: ",delta_encoded_edge_output)
 			send(delta_encoded_edge_output)
 			PREVIOUS_ARRAY = PREVIOUS_ARRAY - analysis.decode(delta_encoded_edge_output).squeeze(0)
+
+			# analysis.train_huff_tree(delta_encoded_edge_output, 'delta_hist', write_to_json= True)
+
 		else:
 			input_to_encoder = edge_out.data.numpy().squeeze(0)
 			encoded_edge_output = analysis.encode(input_to_encoder,min_num=-8,
-												   max_num=8,num_bins=64)
+												   max_num=8,num_bins=60)
 			send(encoded_edge_output)
+			# analysis.train_huff_tree(encoded_edge_output)
 			PREVIOUS_ARRAY = analysis.decode(encoded_edge_output).squeeze(0)
+
+
+def classify_on_random_images(path_to_data_set, number_of_images_to_check):
+	print('classifying images at: ', path_to_data_set)
+
+	cats = json.load(open(FLAGS.cat_json))
+	imagnet_folder = os.listdir(path_to_imagnet)
+	num_of_folders = len(imagnet_folder)
+
+	print(num_of_folders)
+
+	for i in range(number_of_images_to_check):
+		folder = random.choice(imagnet_folder)
+		img_folder = path_to_imagnet+folder
+		images_list = os.listdir(img_folder)
+		image = random.choice(images_list)
+		full_path_to_image = img_folder+'/'+image
+		print('Classifying from: ', full_path_to_image)
+		classify_one_image(full_path_to_image)
 
 
 def classify_one_image(path_to_image):
@@ -85,17 +130,23 @@ def classify_one_image(path_to_image):
 	send(encoded_edge_output)
 
 
-def classify_video_without_splitting(path_to_file):
+def classify_video_without_splitting(path_to_file, class_number):
 	# number_of_frames = 299
-	number_of_frames = analysis.read_in_all_frames(path_to_file)
+	fps, number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
+	print(fps, number_of_frames)
+	# number_of_frames = analysis.read_in_frame_per_second(path_to_file)
+
+	incept = torchvision.models.inception_v3(pretrained=True)
+	incept.eval()
 	passCount = 0
 	failCount = 0
 	failed_frames ={}
 	for i in range(number_of_frames):
-		img = analysis.read_in_frame_number_from_file(i)
 
-		incept = torchvision.models.inception_v3(pretrained=True)
-		incept.eval()
+		try:
+			img = analysis.read_in_frame_from_video(path_to_file, i * fps, write=True)
+		except Exception as e:
+			break
 
 		fc_out = inception.Inception3.forward(self = incept, x = Variable(img))
 		sort = fc_out.data.numpy().argsort()
@@ -113,7 +164,7 @@ def classify_video_without_splitting(path_to_file):
 
 		for i in range(1, 6):
 			print('Number ', i, ': ', labels[sort[0][-i]])
-			if (sort[0][-i] == 105):
+			if (sort[0][-i] == class_number):
 				match = True
 
 		if (match):
@@ -127,7 +178,9 @@ def classify_video_without_splitting(path_to_file):
 		print('Total checked: ', passCount + failCount)
 		print('Number of correct classifictaions: ', passCount)
 		print('Number Failed: ', failCount)
-	print(failed_frames)
+	print('failed frames: ',failed_frames)
+	print('percentage of passed: ', (passCount/(failCount+passCount))*100)
+
 
 def send(data):
 	print('shape: ',data.shape)
@@ -135,13 +188,23 @@ def send(data):
 	# data = data.astype('int8').tobytes()
 
 
+	# code for huffman
+	# arr = data.astype('int8')
+	# codec  = HuffmanCodec.from_data(arr.flatten())
+	# encoded = codec.encode(arr.flatten())
+	# print('size of data being sent: ', len(encoded))
+	# data = (encoded, codec)
+	# data = pickle.dumps(data)
+
 	# new code for huffman
 	arr = data.astype('int8')
-	codec  = HuffmanCodec.from_data(arr.flatten())
-	encoded = codec.encode(arr.flatten())
-	print('size of data being sent: ', len(encoded))
-	data = (encoded, codec)
-	data = pickle.dumps(data)
+	with open('huffman_encoding_config/delta_hist.pickle', 'rb') as handle:
+		delta_hist = pickle.load(handle)
+	codec = HuffmanCodec.from_data(delta_hist)
+	encoded  = codec.encode(arr.flatten())
+	data = encoded
+
+	# print(codec.get_code_table())
 
 	#new code for rle does not work
 	# data = data.astype('int8')
@@ -196,10 +259,10 @@ if __name__ == '__main__':
 		help='Absolute path to the folder storing the video to be analysed'
 	)
 	parser.add_argument(
-		'--num_top_predictions',
-		type = int,
-		default = 5,
-		help = 'Number of predictions to show'
+		'--cat_json',
+		type = str,
+		default = 'config/categories.json',
+		help = 'Path to data set of images'
 	)
 
 	FLAGS, unparsed = parser.parse_known_args()

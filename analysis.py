@@ -11,9 +11,12 @@ import numpy as np
 import sys
 import json
 import math
+import pickle
 
 from inception import Inception3, inception_v3
 from torch.autograd import Variable
+from dahuffman import HuffmanCodec
+from collections import Counter
 
 LABELS_URL = 'https://s3.amazonaws.com/outcome-blog/imagenet/labels.json'
 
@@ -68,6 +71,13 @@ class SplitComputation(Inception3):
 		for layer in layers[start:end]:
 			x = layer(x)
 		return x
+
+def get_fps_and_number_of_frames(path_to_video):
+	print('finding Nunber of frames')
+	cap = cv2.VideoCapture(path_to_video)
+	fps = int(cap.get(cv2.CAP_PROP_FPS))
+	num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+	return fps , num_frames
 
 
 def read_in_frame_from_video(path_to_video, frameNumber, write=False):
@@ -226,6 +236,46 @@ def get_max_and_min(array):
 	print('Min: ', flat_arr[mins])
 
 
+def train_huff_tree(array,file_name, write_to_json = False):
+	print('Training huff tree dictionairy')
+	path = 'huffman_encoding_config/'+file_name
+	try:
+		with open(path+'.pickle', 'rb') as handle:
+			hist = pickle.load(handle)
+		# hist = pickle.load(open('delta_hist.p'))
+	except FileNotFoundError:
+		print('No current histogram found')
+		hist = Counter(range(-64,64))
+
+	new_array = array.flatten().tolist()
+
+	hist.update(new_array)
+
+	with open('delta_hist.pickle', 'wb') as handle:
+		pickle.dump(hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+	if write_to_json is True:
+		with open(path+'.json', 'w') as fp:
+			json.dump(hist, fp)
+
+
+
+
+	# codec = HuffmanCodec.from_data(array)
+	# codec.print_code_table()
+	# dic = codec.get_code_table()
+	# keys = list(dic.keys())
+    #
+	# # change keys in dictionary to strings so can be
+	# # dumped into json file
+	# for i in range(len(keys)):
+	# 	dic[str(keys[i])] = dic.pop(keys[i])
+    #
+	# with open('dic.json', 'w') as fp:
+	# 	json.dump(codec, fp)
+
+
+
 def server_run(input):
 	incept = torchvision.models.inception_v3(pretrained=True)
 	incept.eval()
@@ -246,7 +296,7 @@ def server_run(input):
 	print(labels[fc_out.data.numpy().argmax()])
 	for i in range(1, 6):
 		print('Number ', i, ': ', labels[sort[0][-i]])
-		if(sort[0][-i] == 105):
+		if(sort[0][-i] == 402):
 			match = True
 
 	if(match):
