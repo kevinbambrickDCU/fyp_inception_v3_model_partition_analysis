@@ -5,7 +5,7 @@ import torch
 import pickle
 
 from dahuffman import HuffmanCodec
-from analysis import server_run, decode_delta, decode
+from analysis import server_run, decode_delta, decode, load_huff_dictionary
 
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -20,13 +20,17 @@ sock.listen(1)
 connect = True
 failCount = 0
 passCount = 0
-previous_array = None
-use_delta = True
+PREVIOUS_ARRAY = None
+USE_DELTA = True
+LAST_EDGE_LAYER = 7
+NUM_BINS = 60
+RESHAPE_ARRAY_DIMENSIONS = [192,35,35]
 
-with open('huffman_encoding_config/delta_hist.pickle', 'rb') as handle:
-    delta_hist = pickle.load(handle)
-codec = HuffmanCodec.from_frequencies(delta_hist)
-
+codec_path =  'huffman_encoding_config/'+'layer'+str(LAST_EDGE_LAYER)+'/'+'num_bins_'+str(NUM_BINS)
+delta_hist = load_huff_dictionary(codec_path+'/delta_hist')
+delta_codec = HuffmanCodec.from_frequencies(delta_hist)
+frame_one_hist = load_huff_dictionary(codec_path+'/frame_one_hist')
+frame_one_codec = HuffmanCodec.from_frequencies(frame_one_hist)
 
 while True:
     # Wait for a connection
@@ -46,7 +50,7 @@ while True:
             size = size + len(data)
             # received = received + (data.decode('utf-8'))
             arr.extend(data)
-            #print(sys.stderr, 'received "%s"' % data)
+            # print(sys.stderr, 'received "%s"' % data)
             if data:
                 # print(sys.stderr, 'sending data back to the client')
                 connection.sendall(data)
@@ -54,60 +58,37 @@ while True:
                 print(sys.stderr, 'no more data from', client_address)
                 connect = False
                 break
-            
+
     finally:
         # Clean up the connection
         connection.close()
         print('Size of data recieved: ', size)
 
-        # huffman code
-        # arr = pickle.loads(arr)
-        # codec = arr[1]
-        # decoded = codec.decode(arr[0])
-        # arr = decoded
-
-
-        #new huffman code
-        decoded = codec.decode(arr)
-        arr = decoded
-
-
-
-
-        # arr = np.frombuffer(arr, dtype=np.int8)
-
-
-        # new rle code does not work
-        # arr = arr.tolist()
-        # print(type(arr))
-        # rec = list(zip(*arr))
-        # start = rec[0]
-        # length = rec[1]
-        # values = rec[2]
-        # arr = rle.rldecode(start, length, values)
-
-
-        arr = np.reshape(arr, [192, 35, 35])
-
-        # NEW CODE: DECODE THEN ADD DELTAS
         # print('Recieved: ', arr)
-        if previous_array is not None and use_delta is True:
-            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=60)
-            delta_decoded_arr = decode_delta(previous_array, decoded_arr)
-            # print(delta_decoded_arr)
-            previous_array = delta_decoded_arr
-            result = server_run(torch.Tensor(delta_decoded_arr))
-        else:
-            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=60)
-            previous_array = decoded_arr
-            result = server_run(torch.Tensor(decoded_arr))
+        if PREVIOUS_ARRAY is not None and USE_DELTA is True:
+            #new code
+            decoded = delta_codec.decode(arr)
+            arr = np.reshape(decoded, [192,35,35])
 
-        if(result):
+            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=NUM_BINS)
+            delta_decoded_arr = decode_delta(PREVIOUS_ARRAY, decoded_arr)
+            # print(delta_decoded_arr)
+            PREVIOUS_ARRAY = delta_decoded_arr
+            result = server_run(torch.Tensor(delta_decoded_arr),LAST_EDGE_LAYER)
+        else:
+            #new code
+            decoded = frame_one_codec.decode(arr)
+            arr = np.reshape(decoded, [192,35,35])
+
+            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=NUM_BINS)
+            PREVIOUS_ARRAY = decoded_arr
+            result = server_run(torch.Tensor(decoded_arr),LAST_EDGE_LAYER)
+
+        if result:
             passCount += 1
         else:
             failCount += 1
 
-        print('Total checked: ', passCount+failCount)
+        print('Total checked: ', passCount + failCount)
         print('Number of correct classifictaions: ', passCount)
         print('Number Failed: ', failCount)
-
