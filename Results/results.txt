@@ -1,0 +1,2 @@
+file: videos/n03791053/koala_1.mp4, %Passed: 100.0, avg_byte_size: 93818.16666666667, layer: 7, num_bins_used: 60
+file: videos/n03791053/koala_2.mp4, %Passed: 98.63013698630137, avg_byte_size: 94025.58219178082, layer: 7, num_bins_used: 60

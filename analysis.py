@@ -244,7 +244,7 @@ def load_huff_dictionary(path):
     return hist
 
 
-def server_run(input, last_edge_layer):
+def server_run(input, last_edge_layer, class_label = 105):
     incept = torchvision.models.inception_v3(pretrained=True)
     incept.eval()
     fc_out = SplitComputation.forward(self=incept, x=Variable(input),
@@ -266,7 +266,7 @@ def server_run(input, last_edge_layer):
     print(labels[fc_out.data.numpy().argmax()])
     for i in range(1, 6):
         print('Number ', i, ': ', labels[sort[0][-i]])
-        if (sort[0][-i] == 402):
+        if (sort[0][-i] == class_label):
             match = True
 
     if (match):

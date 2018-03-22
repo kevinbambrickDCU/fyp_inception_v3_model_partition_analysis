@@ -10,18 +10,29 @@ from torch.autograd import Variable
 
 PREVIOUS_ARRAY = None
 LAST_EDGE_LAYER = 7 # 7 is cut at F.max_pool2d
-TRAIN_DELTA_TREE = True
+TRAIN_DELTA_TREE = False
 NUM_BINS = 60
 FLAGS = None
 
+files = [
+    "videos/n01443537/goldfish_1.mp4",
+    "videos/n02099712/golden_retriever_1.mp4",
+    "videos/n02110958/pug_2.mp4",
+    "videos/n02206856/bee_1.mp4",
+    "videos/n02509815/panda_4.mp4",
+    "videos/n03452741/piano_1.mp4"
+]
+
 def main():
     # train_huff_tree(delta_encoded_edge_output, 'delta_hist', write_to_json=True)
-    run_edge_computation(FLAGS.video_file, write_to_json=True)
-    # run_edge_computation("videos/n02676566/guitar_3.mp4")
+    # run_edge_computation(FLAGS.video_file, write_to_json=True)
+    for i in range(len(files)):
+
+      run_edge_computation(files[i], write_to_json=True)
 
 
 def run_edge_computation(path_to_file, write = False, write_to_json = False):
-    print('Running edge computation')
+    print('Running edge computation on :', path_to_file)
     # dumps frames into file
     fps, number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
     PREVIOUS_ARRAY = None
@@ -30,7 +41,11 @@ def run_edge_computation(path_to_file, write = False, write_to_json = False):
     incept.eval()
 
     for i in range(number_of_frames):
-        img = analysis.read_in_frame_from_video(path_to_file, i * fps, write=write)
+        try:
+            img = analysis.read_in_frame_from_video(path_to_file, i * fps, write=write)
+        except Exception as e:
+            print('Finished Training on: ', path_to_file)
+            break
 
         edge_out = analysis.SplitComputation.forward(self=incept,
                                                      x=Variable(img),
@@ -63,7 +78,7 @@ def train_huff_tree(array, file_name, write_to_json=False):
     if (os.path.isdir(path))is False:
         os.makedirs(path)
     try:
-        with open(path + '.pickle', 'rb') as handle:
+        with open(file_path + '.pickle', 'rb') as handle:
             hist = pickle.load(handle)
     except FileNotFoundError:
         print('No current histogram found')

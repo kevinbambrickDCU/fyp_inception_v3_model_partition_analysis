@@ -7,11 +7,8 @@ import sys
 import analysis
 import inception
 import json
-import numpy as np
-import pickle
 import os
 import random
-import shutil
 import requests
 
 from torch.autograd import Variable
@@ -23,12 +20,13 @@ FLAGS = None
 USER_DELTA = True
 PATH_TO_IMAGNET = '../imagnet/val/'
 LABELS_URL = 'https://s3.amazonaws.com/outcome-blog/imagenet/labels.json'
-DELTA_VALUE = 0.1 # delta value for encoding
+DELTA_VALUE = 0.1  # delta value for encoding
+RESET = b'\x01'
 
-codec_path =  'huffman_encoding_config/'+'layer'+str(LAST_EDGE_LAYER)+'/'+'num_bins_'+str(NUM_BINS)
-delta_hist = analysis.load_huff_dictionary(codec_path+'/delta_hist')
+codec_path = 'huffman_encoding_config/' + 'layer' + str(LAST_EDGE_LAYER) + '/' + 'num_bins_' + str(NUM_BINS)
+delta_hist = analysis.load_huff_dictionary(codec_path + '/delta_hist')
 delta_codec = HuffmanCodec.from_frequencies(delta_hist)
-frame_one_hist = analysis.load_huff_dictionary(codec_path+'/frame_one_hist')
+frame_one_hist = analysis.load_huff_dictionary(codec_path + '/frame_one_hist')
 frame_one_codec = HuffmanCodec.from_frequencies(frame_one_hist)
 
 
@@ -37,11 +35,37 @@ def main():
     # classify_one_image('frames/frame1.jpg')
     # classify_one_image('../imagnet/val/n01739381/ILSVRC2012_val_00022816.JPEG')
     # classify_one_image('../imagnet/val/n01847000/ILSVRC2012_val_00000415.JPEG')
-    classify_video(FLAGS.video_file, write=True)
+    # classify_video(FLAGS.video_file, write=True)
     # classify_video_without_splitting(FLAGS.video_file, 105)
     # classify_video_without_splitting("videos/n02509815/panda_5.mp4", 388)
     # classify_video('videos/n03452741/piano_2.mp4', write=True)
     # classify_on_random_images(path_to_imagnet,1)
+
+    # THIS ARRAY NEEDS TO BE THE SAME ON THE SERVER SIDE
+    videos = [
+        # "videos/n01882714/koala_1.mp4",
+        # "videos/n01882714/koala_2.mp4",
+        # "videos/n01882714/koala_3.mp4",
+        #
+        # "videos/n02391049/zebra_1.mp4",
+        # "videos/n02391049/zebra_2.mp4",
+        # "videos/n02391049/zebra_3.mp4",
+        #
+        # "videos/n02510455/panda_1.mp4",
+        # "videos/n02510455/panda_2.mp4",
+        # "videos/n02510455/panda_3.mp4",
+        # "videos/n02510455/panda_4.mp4",
+        # "videos/n02510455/panda_5.mp4",
+
+        "videos/n01443537/goldfish_1.mp4",
+        "videos/n01443537/goldfish_2.mp4",
+        "videos/n01443537/goldfish_3.mp4",
+        "videos/n01443537/goldfish_4.mp4",
+
+        "videos/n01498041/sting_ray_1.mp4"
+
+    ]
+    classify_list_of_videos_without_partition(videos)
 
 
 def delete_previous_frames(path_to_frames):
@@ -50,9 +74,29 @@ def delete_previous_frames(path_to_frames):
         try:
             if os.path.isfile(file_path):
                 os.unlink(file_path)
-            # elif os.path.isdir(file_path): shutil.rmtree(file_path)
+                # elif os.path.isdir(file_path): shutil.rmtree(file_path)
         except Exception as e:
             print(e)
+
+def classify_list_of_videos_without_partition(videos):
+    index = 0
+    for i  in range(len(videos)):
+        class_id = videos[i].split('/')[1]
+        print(class_id)
+        cats = json.load(open(FLAGS.cat_json))
+        for j in range(len(cats)):
+            if cats[j]['id'] == class_id:
+                index = cats[j]['index']
+        print(index)
+        print('classifying: ', videos[i])
+        classify_video_without_splitting(videos[i], class_number=index)
+
+
+def classify_list_of_videos(videos):
+    for i in range(len(videos)):
+        print('Classifying: ', videos[i])
+        classify_video(videos[i], write=False)
+        send(RESET)
 
 
 def classify_video(path_to_file, write=False):
@@ -67,10 +111,14 @@ def classify_video(path_to_file, write=False):
     incept = torchvision.models.inception_v3(pretrained=True)
     incept.eval()
 
-    for i in range(number_of_frames):
+    for i in range(int(number_of_frames / fps)):
         # img = analysis.read_in_frame_number_from_file(i)
 
-        img = analysis.read_in_frame_from_video(path_to_file, i * fps, write=write)
+        try:
+            img = analysis.read_in_frame_from_video(path_to_file, i * fps, write=write)
+        except Exception as e:
+            print(e)
+            break
 
         edge_out = analysis.SplitComputation.forward(self=incept,
                                                      x=Variable(img),
@@ -182,12 +230,18 @@ def classify_video_without_splitting(path_to_file, class_number):
             print('Classification incorrect')
             failCount += 1
             failed_frames[failCount - 1] = failCount + passCount
-
+        print('Checking: ', path_to_file)
         print('Total checked: ', passCount + failCount)
         print('Number of correct classifictaions: ', passCount)
         print('Number Failed: ', failCount)
+
+    # PRINT RESULTS
     print('failed frames: ', failed_frames)
-    print('percentage of passed: ', (passCount / (failCount + passCount)) * 100)
+    passRate = (passCount / (failCount + passCount)) * 100
+    print('percentage of passed: ', passRate)
+    result = 'file: ' + path_to_file + ', %Passed: ' + str(passRate)+'\n'
+    with open("Results/non_split_results.txt", "a") as myfile:
+        myfile.write(result)
 
 
 def send(data):
