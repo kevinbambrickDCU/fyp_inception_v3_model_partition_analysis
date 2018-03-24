@@ -14,14 +14,17 @@ import requests
 from torch.autograd import Variable
 from dahuffman import HuffmanCodec
 
+# These Values to be the same on the server side
+USER_DELTA = True
 LAST_EDGE_LAYER = 7  # 7 is cut at F.max_pool2d
 NUM_BINS = 60
-FLAGS = None
-USER_DELTA = True
+DELTA_VALUE = 0.1  # delta value for encoding
+
 PATH_TO_IMAGNET = '../imagnet/val/'
 LABELS_URL = 'https://s3.amazonaws.com/outcome-blog/imagenet/labels.json'
-DELTA_VALUE = 0.1  # delta value for encoding
 RESET = b'\x01'
+FLAGS = None
+MSE = []
 
 codec_path = 'huffman_encoding_config/' + 'layer' + str(LAST_EDGE_LAYER) + '/' + 'num_bins_' + str(NUM_BINS)
 delta_hist = analysis.load_huff_dictionary(codec_path + '/delta_hist')
@@ -43,9 +46,25 @@ def main():
 
     # THIS ARRAY NEEDS TO BE THE SAME ON THE SERVER SIDE
     videos = [
+        # "videos/n01443537/goldfish_1.mp4",
+        # "videos/n01443537/goldfish_2.mp4",
+        # "videos/n01443537/goldfish_3.mp4",
+        #
         # "videos/n01882714/koala_1.mp4",
         # "videos/n01882714/koala_2.mp4",
         # "videos/n01882714/koala_3.mp4",
+        #
+        # "videos/n02085620/dog_1.mp4",
+        #
+        # "videos/n02099601/golden_retriever_1.mp4",
+        #
+        # "videos/n02099712/golden_retriever_1.mp4",
+        #
+        # "videos/n02110958/pug_1.mp4",
+        # "videos/n02110958/pug_3.mp4",
+        # "videos/n02110958/pug_4.mp4",
+        #
+        # "videos/n02206856/bee_1.mp4",
         #
         # "videos/n02391049/zebra_1.mp4",
         # "videos/n02391049/zebra_2.mp4",
@@ -56,16 +75,50 @@ def main():
         # "videos/n02510455/panda_3.mp4",
         # "videos/n02510455/panda_4.mp4",
         # "videos/n02510455/panda_5.mp4",
+        #
+        # "videos/n02676566/guitar_1.mp4",
+        # "videos/n02676566/guitar_2.mp4",
+        # "videos/n02676566/guitar_3.mp4",
+        # "videos/n02676566/guitar_4.mp4",
+        # "videos/n02676566/guitar_6.mp4",
+        #
+        # "videos/n02787622/banjo_1.mp4",
+        # "videos/n02787622/banjo_2.mp4",
+        # "videos/n02787622/banjo_3.mp4",
+        # "videos/n02787622/banjo_5.mp4",
+        #
+        # "videos/n03452741/piano_1.mp4",
+        # "videos/n03452741/piano_2.mp4",
+        #
+        # "videos/n03495258/harp_1.mp4",
+        # "videos/n03495258/harp_2.mp4",
+        # "videos/n03495258/harp_3.mp4",
+        #
+        # "videos/n03584254/ipod_1.mp4",
+        # "videos/n03584254/ipod_2.mp4",
+        #
+        # "videos/n03967562/plough_1.mp4",
+        #
+        # "videos/n04536866/violin_3.mp4",
+        # "videos/n04536866/violin_4.mp4",
+        #
+        # "videos/n06596364/comic_1.mp4",
+        #
+        # "videos/n01910747/jelly_fish_1.mp4",
+        # "videos/n01910747/jelly_fish_2.mp4",
+        #
+        # "videos/n02134084/polar_bear_1.mp4",
+        "videos/n02134084/polar_bear_3.mp4",
 
-        "videos/n01443537/goldfish_1.mp4",
-        "videos/n01443537/goldfish_2.mp4",
-        "videos/n01443537/goldfish_3.mp4",
-        "videos/n01443537/goldfish_4.mp4",
+        "videos/n02342885/hamster_1.mp4",
+        "videos/n02342885/hamster_2.mp4",
+        "videos/n02342885/hamster_4.mp4",
+        "videos/n02342885/hamster_5.mp4",
 
-        "videos/n01498041/sting_ray_1.mp4"
-
+        "videos/n02364673/guinea_pig_1.mp4",
+        "videos/n02364673/guinea_pig_2.mp4"
     ]
-    classify_list_of_videos_without_partition(videos)
+    classify_list_of_videos(videos)
 
 
 def delete_previous_frames(path_to_frames):
@@ -78,9 +131,10 @@ def delete_previous_frames(path_to_frames):
         except Exception as e:
             print(e)
 
+
 def classify_list_of_videos_without_partition(videos):
     index = 0
-    for i  in range(len(videos)):
+    for i in range(len(videos)):
         class_id = videos[i].split('/')[1]
         print(class_id)
         cats = json.load(open(FLAGS.cat_json))
@@ -95,12 +149,21 @@ def classify_list_of_videos_without_partition(videos):
 def classify_list_of_videos(videos):
     for i in range(len(videos)):
         print('Classifying: ', videos[i])
-        classify_video(videos[i], write=False)
+        MSE = classify_video(videos[i], write=False)
         send(RESET)
+        results_path = "Results" + '/layer' + str(LAST_EDGE_LAYER) + '/num_bins_' + str(NUM_BINS) + '/delta_value' \
+                       + str(DELTA_VALUE)
+        avg_error = sum(MSE) / len(MSE)
+        result = 'file: ' + videos[i] + ', AVG_MSE: ' + str(avg_error) + '\n'
+        if not os.path.isdir(results_path):
+            os.makedirs(results_path)
+        with open(results_path + '/MSE.txt', 'a') as myfile:
+            myfile.write(result)
 
 
 def classify_video(path_to_file, write=False):
     print('Classifying Video frame by fame')
+    MSE = []
     # dumps frames into file
     # number_of_frames = analysis.read_in_all_frames(path_to_file)
     # number_of_frames = 299
@@ -134,8 +197,11 @@ def classify_video(path_to_file, write=False):
             # print("data being sent: ",delta_encoded_edge_output)
             huff_delta_encoded_edge_output = delta_codec.encode(delta_encoded_edge_output.flatten().astype('int8'))
             send(huff_delta_encoded_edge_output)
-            PREVIOUS_ARRAY = PREVIOUS_ARRAY - analysis.decode(delta_encoded_edge_output).squeeze(0)
-
+            server_decoded = analysis.decode(delta_encoded_edge_output).squeeze(0)
+            PREVIOUS_ARRAY = PREVIOUS_ARRAY - server_decoded
+            # GETTING ERROR BETWEEN EDGE OUT AND ENCODED
+            error = ((input_to_compute_deltas - server_decoded) ** 2).mean()
+            MSE.append(error)
         else:
             input_to_encoder = edge_out.data.numpy().squeeze(0)
             encoded_edge_output = analysis.encode(input_to_encoder, min_num=-8,
@@ -143,6 +209,11 @@ def classify_video(path_to_file, write=False):
             huff_encoded_edge_output = frame_one_codec.encode(encoded_edge_output.flatten().astype('int8'))
             send(huff_encoded_edge_output)
             PREVIOUS_ARRAY = analysis.decode(encoded_edge_output).squeeze(0)
+            # GETTING ERROR BETWEEN EDGE OUT AND ENCODED
+            error = ((input_to_encoder - PREVIOUS_ARRAY) ** 2).mean()
+            MSE.append(error)
+        print('ERROR: ', error)
+    return MSE
 
 
 def classify_on_random_images(path_to_data_set, number_of_images_to_check):
@@ -239,7 +310,7 @@ def classify_video_without_splitting(path_to_file, class_number):
     print('failed frames: ', failed_frames)
     passRate = (passCount / (failCount + passCount)) * 100
     print('percentage of passed: ', passRate)
-    result = 'file: ' + path_to_file + ', %Passed: ' + str(passRate)+'\n'
+    result = 'file: ' + path_to_file + ', %Passed: ' + str(passRate) + '\n'
     with open("Results/non_split_results.txt", "a") as myfile:
         myfile.write(result)
 
