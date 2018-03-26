@@ -40,78 +40,78 @@ frame_one_codec = HuffmanCodec.from_frequencies(frame_one_hist)
 
 sizes = []
 videos = [
-        # "videos/n01443537/goldfish_1.mp4",
-        # "videos/n01443537/goldfish_2.mp4",
-        # "videos/n01443537/goldfish_3.mp4",
-        #
-        # "videos/n01882714/koala_1.mp4",
-        # "videos/n01882714/koala_2.mp4",
-        # "videos/n01882714/koala_3.mp4",
-        #
-        # "videos/n02085620/dog_1.mp4",
-        #
-        # "videos/n02099601/golden_retriever_1.mp4",
-        #
-        # "videos/n02099712/golden_retriever_1.mp4",
-        #
-        # "videos/n02110958/pug_1.mp4",
-        # "videos/n02110958/pug_3.mp4",
-        # "videos/n02110958/pug_4.mp4",
-        #
-        # "videos/n02206856/bee_1.mp4",
-        #
-        # "videos/n02391049/zebra_1.mp4",
-        # "videos/n02391049/zebra_2.mp4",
-        # "videos/n02391049/zebra_3.mp4",
-        #
-        # "videos/n02510455/panda_1.mp4",
-        # "videos/n02510455/panda_2.mp4",
-        # "videos/n02510455/panda_3.mp4",
-        # "videos/n02510455/panda_4.mp4",
-        # "videos/n02510455/panda_5.mp4",
-        #
-        # "videos/n02676566/guitar_1.mp4",
-        # "videos/n02676566/guitar_2.mp4",
-        # "videos/n02676566/guitar_3.mp4",
-        # "videos/n02676566/guitar_4.mp4",
-        # "videos/n02676566/guitar_6.mp4",
-        #
-        # "videos/n02787622/banjo_1.mp4",
-        # "videos/n02787622/banjo_2.mp4",
-        # "videos/n02787622/banjo_3.mp4",
-        # "videos/n02787622/banjo_5.mp4",
-        #
-        # "videos/n03452741/piano_1.mp4",
-        # "videos/n03452741/piano_2.mp4",
-        #
-        # "videos/n03495258/harp_1.mp4",
-        # "videos/n03495258/harp_2.mp4",
-        # "videos/n03495258/harp_3.mp4",
-        #
-        # "videos/n03584254/ipod_1.mp4",
-        # "videos/n03584254/ipod_2.mp4",
-        #
-        # "videos/n03967562/plough_1.mp4",
-        #
-        # "videos/n04536866/violin_3.mp4",
-        # "videos/n04536866/violin_4.mp4",
-        #
-        # "videos/n06596364/comic_1.mp4",
-        #
-        # "videos/n01910747/jelly_fish_1.mp4",
-        # "videos/n01910747/jelly_fish_2.mp4",
-        #
-        # "videos/n02134084/polar_bear_1.mp4",
-        "videos/n02134084/polar_bear_3.mp4",
+    "videos/n01443537/goldfish_1.mp4",
+    "videos/n01443537/goldfish_2.mp4",
+    "videos/n01443537/goldfish_3.mp4",
 
-        "videos/n02342885/hamster_1.mp4",
-        "videos/n02342885/hamster_2.mp4",
-        "videos/n02342885/hamster_4.mp4",
-        "videos/n02342885/hamster_5.mp4",
+    "videos/n01882714/koala_1.mp4",
+    "videos/n01882714/koala_2.mp4",
+    "videos/n01882714/koala_3.mp4",
 
-        "videos/n02364673/guinea_pig_1.mp4",
-        "videos/n02364673/guinea_pig_2.mp4"
-    ]
+    "videos/n02085620/dog_1.mp4",
+
+    "videos/n02099601/golden_retriever_1.mp4",
+
+    "videos/n02099712/golden_retriever_1.mp4",
+
+    "videos/n02110958/pug_1.mp4",
+    "videos/n02110958/pug_3.mp4",
+    "videos/n02110958/pug_4.mp4",
+
+    "videos/n02206856/bee_1.mp4",
+
+    "videos/n02391049/zebra_1.mp4",
+    "videos/n02391049/zebra_2.mp4",
+    "videos/n02391049/zebra_3.mp4",
+
+    "videos/n02510455/panda_1.mp4",
+    "videos/n02510455/panda_2.mp4",
+    "videos/n02510455/panda_3.mp4",
+    "videos/n02510455/panda_4.mp4",
+    "videos/n02510455/panda_5.mp4",
+
+    "videos/n02676566/guitar_1.mp4",
+    "videos/n02676566/guitar_2.mp4",
+    "videos/n02676566/guitar_3.mp4",
+    "videos/n02676566/guitar_4.mp4",
+    "videos/n02676566/guitar_6.mp4",
+
+    "videos/n02787622/banjo_1.mp4",
+    "videos/n02787622/banjo_2.mp4",
+    "videos/n02787622/banjo_3.mp4",
+    "videos/n02787622/banjo_5.mp4",
+
+    "videos/n03452741/piano_1.mp4",
+    "videos/n03452741/piano_2.mp4",
+
+    "videos/n03495258/harp_1.mp4",
+    "videos/n03495258/harp_2.mp4",
+    "videos/n03495258/harp_3.mp4",
+
+    "videos/n03584254/ipod_1.mp4",
+    "videos/n03584254/ipod_2.mp4",
+
+    "videos/n03967562/plough_1.mp4",
+
+    "videos/n04536866/violin_3.mp4",
+    "videos/n04536866/violin_4.mp4",
+
+    "videos/n06596364/comic_1.mp4",
+
+    "videos/n01910747/jelly_fish_1.mp4",
+    "videos/n01910747/jelly_fish_2.mp4",
+
+    "videos/n02134084/polar_bear_1.mp4",
+    "videos/n02134084/polar_bear_3.mp4",
+
+    "videos/n02342885/hamster_1.mp4",
+    "videos/n02342885/hamster_2.mp4",
+    "videos/n02342885/hamster_4.mp4",
+    "videos/n02342885/hamster_5.mp4",
+
+    "videos/n02364673/guinea_pig_1.mp4",
+    "videos/n02364673/guinea_pig_2.mp4"
+]
 vid_num = 0
 
 # NEED TO CHECK THIS CODE WORKS FOR AUTOMATED TESTING
@@ -160,13 +160,13 @@ while True:
             passRate = (passCount / (failCount + passCount)) * 100
             print('percentage of passed: ', passRate)
             result = 'file: ' + videos[vid_num] + ', %Passed: ' + str(passRate) + ', avg_byte_size: ' \
-                     + str(avg_byte_size) + ', layer: ' + str(LAST_EDGE_LAYER) + ', num_bins_used: ' + str(NUM_BINS)+\
-                     ', Delta Value: '+str(DELTA_VALUE)+'\n'
-            results_path = "Results"+ '/layer' + str(LAST_EDGE_LAYER) + '/num_bins_' + str(NUM_BINS)+'/delta_value' \
-                            +str(DELTA_VALUE)
+                     + str(avg_byte_size) + ', layer: ' + str(LAST_EDGE_LAYER) + ', num_bins_used: ' + str(NUM_BINS) + \
+                     ', Delta Value: ' + str(DELTA_VALUE) + '\n'
+            results_path = "Results" + '/layer' + str(LAST_EDGE_LAYER) + '/num_bins_' + str(NUM_BINS) + '/delta_value' \
+                           + str(DELTA_VALUE)
             if not os.path.isdir(results_path):
                 os.makedirs(results_path)
-            with open(results_path+"/results.txt", "a") as myfile:
+            with open(results_path + "/results.txt", "a") as myfile:
                 myfile.write(result)
 
             # Resetting variables
@@ -189,7 +189,7 @@ while True:
             decoded = delta_codec.decode(arr)
             arr = np.reshape(decoded, [192, 35, 35])
 
-            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=NUM_BINS)
+            decoded_arr = decode(arr, NUM_BINS, max_num=8, min_num=-8)
             delta_decoded_arr = decode_delta(PREVIOUS_ARRAY, decoded_arr)
             # print(delta_decoded_arr)
             PREVIOUS_ARRAY = delta_decoded_arr
@@ -199,7 +199,7 @@ while True:
             decoded = frame_one_codec.decode(arr)
             arr = np.reshape(decoded, [192, 35, 35])
 
-            decoded_arr = decode(arr, max_num=8, min_num=-8, num_bins=NUM_BINS)
+            decoded_arr = decode(arr, NUM_BINS, max_num=8, min_num=-8)
             PREVIOUS_ARRAY = decoded_arr
             result = server_run(torch.Tensor(decoded_arr), LAST_EDGE_LAYER, class_label=index)
 

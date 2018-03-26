@@ -10,6 +10,7 @@ import json
 import os
 import random
 import requests
+import errno
 
 from torch.autograd import Variable
 from dahuffman import HuffmanCodec
@@ -46,68 +47,68 @@ def main():
 
     # THIS ARRAY NEEDS TO BE THE SAME ON THE SERVER SIDE
     videos = [
-        # "videos/n01443537/goldfish_1.mp4",
-        # "videos/n01443537/goldfish_2.mp4",
-        # "videos/n01443537/goldfish_3.mp4",
-        #
-        # "videos/n01882714/koala_1.mp4",
-        # "videos/n01882714/koala_2.mp4",
-        # "videos/n01882714/koala_3.mp4",
-        #
-        # "videos/n02085620/dog_1.mp4",
-        #
-        # "videos/n02099601/golden_retriever_1.mp4",
-        #
-        # "videos/n02099712/golden_retriever_1.mp4",
-        #
-        # "videos/n02110958/pug_1.mp4",
-        # "videos/n02110958/pug_3.mp4",
-        # "videos/n02110958/pug_4.mp4",
-        #
-        # "videos/n02206856/bee_1.mp4",
-        #
-        # "videos/n02391049/zebra_1.mp4",
-        # "videos/n02391049/zebra_2.mp4",
-        # "videos/n02391049/zebra_3.mp4",
-        #
-        # "videos/n02510455/panda_1.mp4",
-        # "videos/n02510455/panda_2.mp4",
-        # "videos/n02510455/panda_3.mp4",
-        # "videos/n02510455/panda_4.mp4",
-        # "videos/n02510455/panda_5.mp4",
-        #
-        # "videos/n02676566/guitar_1.mp4",
-        # "videos/n02676566/guitar_2.mp4",
-        # "videos/n02676566/guitar_3.mp4",
-        # "videos/n02676566/guitar_4.mp4",
-        # "videos/n02676566/guitar_6.mp4",
-        #
-        # "videos/n02787622/banjo_1.mp4",
-        # "videos/n02787622/banjo_2.mp4",
-        # "videos/n02787622/banjo_3.mp4",
-        # "videos/n02787622/banjo_5.mp4",
-        #
-        # "videos/n03452741/piano_1.mp4",
-        # "videos/n03452741/piano_2.mp4",
-        #
-        # "videos/n03495258/harp_1.mp4",
-        # "videos/n03495258/harp_2.mp4",
-        # "videos/n03495258/harp_3.mp4",
-        #
-        # "videos/n03584254/ipod_1.mp4",
-        # "videos/n03584254/ipod_2.mp4",
-        #
-        # "videos/n03967562/plough_1.mp4",
-        #
-        # "videos/n04536866/violin_3.mp4",
-        # "videos/n04536866/violin_4.mp4",
-        #
-        # "videos/n06596364/comic_1.mp4",
-        #
-        # "videos/n01910747/jelly_fish_1.mp4",
-        # "videos/n01910747/jelly_fish_2.mp4",
-        #
-        # "videos/n02134084/polar_bear_1.mp4",
+        "videos/n01443537/goldfish_1.mp4",
+        "videos/n01443537/goldfish_2.mp4",
+        "videos/n01443537/goldfish_3.mp4",
+
+        "videos/n01882714/koala_1.mp4",
+        "videos/n01882714/koala_2.mp4",
+        "videos/n01882714/koala_3.mp4",
+
+        "videos/n02085620/dog_1.mp4",
+
+        "videos/n02099601/golden_retriever_1.mp4",
+
+        "videos/n02099712/golden_retriever_1.mp4",
+
+        "videos/n02110958/pug_1.mp4",
+        "videos/n02110958/pug_3.mp4",
+        "videos/n02110958/pug_4.mp4",
+
+        "videos/n02206856/bee_1.mp4",
+
+        "videos/n02391049/zebra_1.mp4",
+        "videos/n02391049/zebra_2.mp4",
+        "videos/n02391049/zebra_3.mp4",
+
+        "videos/n02510455/panda_1.mp4",
+        "videos/n02510455/panda_2.mp4",
+        "videos/n02510455/panda_3.mp4",
+        "videos/n02510455/panda_4.mp4",
+        "videos/n02510455/panda_5.mp4",
+
+        "videos/n02676566/guitar_1.mp4",
+        "videos/n02676566/guitar_2.mp4",
+        "videos/n02676566/guitar_3.mp4",
+        "videos/n02676566/guitar_4.mp4",
+        "videos/n02676566/guitar_6.mp4",
+
+        "videos/n02787622/banjo_1.mp4",
+        "videos/n02787622/banjo_2.mp4",
+        "videos/n02787622/banjo_3.mp4",
+        "videos/n02787622/banjo_5.mp4",
+
+        "videos/n03452741/piano_1.mp4",
+        "videos/n03452741/piano_2.mp4",
+
+        "videos/n03495258/harp_1.mp4",
+        "videos/n03495258/harp_2.mp4",
+        "videos/n03495258/harp_3.mp4",
+
+        "videos/n03584254/ipod_1.mp4",
+        "videos/n03584254/ipod_2.mp4",
+
+        "videos/n03967562/plough_1.mp4",
+
+        "videos/n04536866/violin_3.mp4",
+        "videos/n04536866/violin_4.mp4",
+
+        "videos/n06596364/comic_1.mp4",
+
+        "videos/n01910747/jelly_fish_1.mp4",
+        "videos/n01910747/jelly_fish_2.mp4",
+
+        "videos/n02134084/polar_bear_1.mp4",
         "videos/n02134084/polar_bear_3.mp4",
 
         "videos/n02342885/hamster_1.mp4",
@@ -155,8 +156,12 @@ def classify_list_of_videos(videos):
                        + str(DELTA_VALUE)
         avg_error = sum(MSE) / len(MSE)
         result = 'file: ' + videos[i] + ', AVG_MSE: ' + str(avg_error) + '\n'
-        if not os.path.isdir(results_path):
-            os.makedirs(results_path)
+        if not (os.path.isdir(results_path)):
+            try:
+                os.makedirs(results_path)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise
         with open(results_path + '/MSE.txt', 'a') as myfile:
             myfile.write(result)
 
@@ -172,7 +177,7 @@ def classify_video(path_to_file, write=False):
     PREVIOUS_ARRAY = None
 
     incept = torchvision.models.inception_v3(pretrained=True)
-    incept.eval()
+    incept.eval() # put mocel into evaluation mode
 
     for i in range(int(number_of_frames / fps)):
         # img = analysis.read_in_frame_number_from_file(i)
@@ -192,23 +197,23 @@ def classify_video(path_to_file, write=False):
             input_to_compute_deltas = edge_out.data.numpy().squeeze(0)
             delta_edge_output = analysis.compute_delta(PREVIOUS_ARRAY, input_to_compute_deltas, DELTA_VALUE)
 
-            delta_encoded_edge_output = analysis.encode(delta_edge_output, min_num=-8,
-                                                        max_num=8, num_bins=NUM_BINS)
+            delta_encoded_edge_output = analysis.encode(delta_edge_output, NUM_BINS, min_num=-8,
+                                                        max_num=8)
             # print("data being sent: ",delta_encoded_edge_output)
             huff_delta_encoded_edge_output = delta_codec.encode(delta_encoded_edge_output.flatten().astype('int8'))
             send(huff_delta_encoded_edge_output)
-            server_decoded = analysis.decode(delta_encoded_edge_output).squeeze(0)
+            server_decoded = analysis.decode(delta_encoded_edge_output, NUM_BINS).squeeze(0)
             PREVIOUS_ARRAY = PREVIOUS_ARRAY - server_decoded
             # GETTING ERROR BETWEEN EDGE OUT AND ENCODED
-            error = ((input_to_compute_deltas - server_decoded) ** 2).mean()
+            error = ((input_to_compute_deltas - PREVIOUS_ARRAY) ** 2).mean()
             MSE.append(error)
         else:
             input_to_encoder = edge_out.data.numpy().squeeze(0)
-            encoded_edge_output = analysis.encode(input_to_encoder, min_num=-8,
-                                                  max_num=8, num_bins=NUM_BINS)
+            encoded_edge_output = analysis.encode(input_to_encoder,NUM_BINS, min_num=-8,
+                                                  max_num=8)
             huff_encoded_edge_output = frame_one_codec.encode(encoded_edge_output.flatten().astype('int8'))
             send(huff_encoded_edge_output)
-            PREVIOUS_ARRAY = analysis.decode(encoded_edge_output).squeeze(0)
+            PREVIOUS_ARRAY = analysis.decode(encoded_edge_output, NUM_BINS).squeeze(0)
             # GETTING ERROR BETWEEN EDGE OUT AND ENCODED
             error = ((input_to_encoder - PREVIOUS_ARRAY) ** 2).mean()
             MSE.append(error)

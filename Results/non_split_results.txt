@@ -48,3 +48,4 @@ file: videos/n02342885/hamster_4.mp4, %Passed: 40.909090909090914
 file: videos/n02342885/hamster_5.mp4, %Passed: 50.0
 file: videos/n02364673/guinea_pig_1.mp4, %Passed: 69.04761904761905
 file: videos/n02364673/guinea_pig_2.mp4, %Passed: 73.52941176470588
+file: videos/n02099712/golden_retriever_1.mp4, %Passed: 70.25862068965517

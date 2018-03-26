@@ -94,7 +94,7 @@ def read_in_frame_from_video(path_to_video, frameNumber, write=False):
 
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
+        std=[0.229, 0.224, 0.225] # Numbers as per example on Pytorch website
     )
     preprocess = transforms.Compose([
         transforms.Resize((299, 299)),
@@ -189,7 +189,7 @@ def read_in_frame_number_from_file(frameNumber):
     return img
 
 
-def encode(array, min_num=-8, max_num=8, num_bins=64):
+def encode(array,num_bins, min_num=-8, max_num=8):
     print('Encoding..')
     arr = array
     arr = np.clip(arr, min_num, max_num)
@@ -212,7 +212,7 @@ def decode_delta(previous_array, delta_array):
     return previous_array - delta_array
 
 
-def decode(array, min_num=-8, max_num=8, num_bins=64):
+def decode(array, num_bins, min_num=-8, max_num=8):
     print('Decoding')
     arr = (array / num_bins) * (max_num - min_num)
     arr = np.expand_dims(arr, axis=0)
