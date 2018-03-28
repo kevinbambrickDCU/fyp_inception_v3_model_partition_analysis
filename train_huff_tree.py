@@ -10,11 +10,12 @@ from torch.autograd import Variable
 
 FLAGS = None
 PREVIOUS_ARRAY = None
+incept = torchvision.models.inception_v3(pretrained=True)
 
 # Parameters to set
 LAST_EDGE_LAYER = 7  # 7 is cut at F.max_pool2d
-TRAIN_DELTA_TREE = False
-NUM_BINS = 60
+TRAIN_DELTA_TREE = True
+NUM_BINS = 35
 files = [
     "videos/n01443537/goldfish_2.mp4",
     "videos/n01910747/jelly_fish_1.mp4",
@@ -40,7 +41,7 @@ def run_edge_computation(path_to_file, write=False, write_to_json=False):
     fps, number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
     PREVIOUS_ARRAY = None
 
-    incept = torchvision.models.inception_v3(pretrained=True)
+    # incept = torchvision.models.inception_v3(pretrained=True)
     incept.eval()
 
     for i in range(number_of_frames):

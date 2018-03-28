@@ -5,6 +5,7 @@ import torch
 import pickle
 import json
 import os
+import torchvision
 
 from dahuffman import HuffmanCodec
 from analysis import server_run, decode_delta, decode, load_huff_dictionary
@@ -23,11 +24,12 @@ connect = True
 failCount = 0
 passCount = 0
 PREVIOUS_ARRAY = None
+INCEPT = torchvision.models.inception_v3(pretrained=True)
 
 # These values should be the same on the server side
 USE_DELTA = True
 LAST_EDGE_LAYER = 7
-NUM_BINS = 60
+NUM_BINS = 40
 DELTA_VALUE = 0.1
 
 RESHAPE_ARRAY_DIMENSIONS = [192, 35, 35]
@@ -193,7 +195,7 @@ while True:
             delta_decoded_arr = decode_delta(PREVIOUS_ARRAY, decoded_arr)
             # print(delta_decoded_arr)
             PREVIOUS_ARRAY = delta_decoded_arr
-            result = server_run(torch.Tensor(delta_decoded_arr), LAST_EDGE_LAYER, class_label=index)
+            result = server_run(torch.Tensor(delta_decoded_arr), LAST_EDGE_LAYER, INCEPT, class_label=index)
         else:
             # new code
             decoded = frame_one_codec.decode(arr)
@@ -201,7 +203,7 @@ while True:
 
             decoded_arr = decode(arr, NUM_BINS, max_num=8, min_num=-8)
             PREVIOUS_ARRAY = decoded_arr
-            result = server_run(torch.Tensor(decoded_arr), LAST_EDGE_LAYER, class_label=index)
+            result = server_run(torch.Tensor(decoded_arr), LAST_EDGE_LAYER,INCEPT, class_label=index)
 
         if result:
             passCount += 1

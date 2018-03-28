@@ -18,7 +18,7 @@ from dahuffman import HuffmanCodec
 # These Values to be the same on the server side
 USER_DELTA = True
 LAST_EDGE_LAYER = 7  # 7 is cut at F.max_pool2d
-NUM_BINS = 60
+NUM_BINS = 40
 DELTA_VALUE = 0.1  # delta value for encoding
 
 PATH_TO_IMAGNET = '../imagnet/val/'
@@ -26,6 +26,7 @@ LABELS_URL = 'https://s3.amazonaws.com/outcome-blog/imagenet/labels.json'
 RESET = b'\x01'
 FLAGS = None
 MSE = []
+incept = torchvision.models.inception_v3(pretrained=True)
 
 codec_path = 'huffman_encoding_config/' + 'layer' + str(LAST_EDGE_LAYER) + '/' + 'num_bins_' + str(NUM_BINS)
 delta_hist = analysis.load_huff_dictionary(codec_path + '/delta_hist')
@@ -176,7 +177,7 @@ def classify_video(path_to_file, write=False):
     # number_of_frames = analysis.read_in_frame_per_second(path_to_file)
     PREVIOUS_ARRAY = None
 
-    incept = torchvision.models.inception_v3(pretrained=True)
+    # incept = torchvision.models.inception_v3(pretrained=True)
     incept.eval() # put mocel into evaluation mode
 
     for i in range(int(number_of_frames / fps)):
@@ -188,7 +189,7 @@ def classify_video(path_to_file, write=False):
             print(e)
             break
 
-        edge_out = analysis.SplitComputation.forward(self=incept,
+        edge_out = analysis.SplitComputation.forward(self=incept, #pretrained model
                                                      x=Variable(img),
                                                      start=0,
                                                      end=LAST_EDGE_LAYER)
@@ -266,7 +267,7 @@ def classify_video_without_splitting(path_to_file, class_number):
     print(fps, number_of_frames)
     # number_of_frames = analysis.read_in_frame_per_second(path_to_file)
 
-    incept = torchvision.models.inception_v3(pretrained=True)
+    # incept = torchvision.models.inception_v3(pretrained=True)
     incept.eval()
     passCount = 0
     failCount = 0

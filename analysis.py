@@ -244,8 +244,8 @@ def load_huff_dictionary(path):
     return hist
 
 
-def server_run(input, last_edge_layer, class_label = 105):
-    incept = torchvision.models.inception_v3(pretrained=True)
+def server_run(input, last_edge_layer, incept, class_label = 105):
+    # incept = torchvision.models.inception_v3(pretrained=True)
     incept.eval()
     fc_out = SplitComputation.forward(self=incept, x=Variable(input),
                                       start=last_edge_layer, end=None)
