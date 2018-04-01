@@ -15,37 +15,17 @@ import errno
 from torch.autograd import Variable
 from dahuffman import HuffmanCodec
 
-# These Values to be the same on the server side
+FLAGS = None
 USER_DELTA = True
-LAST_EDGE_LAYER = 7  # 7 is cut at F.max_pool2d
-NUM_BINS = 40
-DELTA_VALUE = 0.1  # delta value for encoding
-
 PATH_TO_IMAGNET = '../imagnet/val/'
 LABELS_URL = 'https://s3.amazonaws.com/outcome-blog/imagenet/labels.json'
 RESET = b'\x01'
-FLAGS = None
 MSE = []
 incept = torchvision.models.inception_v3(pretrained=True)
-
-codec_path = 'huffman_encoding_config/' + 'layer' + str(LAST_EDGE_LAYER) + '/' + 'num_bins_' + str(NUM_BINS)
-delta_hist = analysis.load_huff_dictionary(codec_path + '/delta_hist')
-delta_codec = HuffmanCodec.from_frequencies(delta_hist)
-frame_one_hist = analysis.load_huff_dictionary(codec_path + '/frame_one_hist')
-frame_one_codec = HuffmanCodec.from_frequencies(frame_one_hist)
 
 
 def main():
     delete_previous_frames(FLAGS.frame_file)
-    # classify_one_image('frames/frame1.jpg')
-    # classify_one_image('../imagnet/val/n01739381/ILSVRC2012_val_00022816.JPEG')
-    # classify_one_image('../imagnet/val/n01847000/ILSVRC2012_val_00000415.JPEG')
-    # classify_video(FLAGS.video_file, write=True)
-    # classify_video_without_splitting(FLAGS.video_file, 105)
-    # classify_video_without_splitting("videos/n02509815/panda_5.mp4", 388)
-    # classify_video('videos/n03452741/piano_2.mp4', write=True)
-    # classify_on_random_images(path_to_imagnet,1)
-
     # THIS ARRAY NEEDS TO BE THE SAME ON THE SERVER SIDE
     videos = [
         "videos/n01443537/goldfish_1.mp4",
@@ -145,13 +125,23 @@ def classify_list_of_videos_without_partition(videos):
                 index = cats[j]['index']
         print(index)
         print('classifying: ', videos[i])
-        classify_video_without_splitting(videos[i], class_number=index)
+        classify_video_without_splitting(videos[i], index)
 
 
 def classify_list_of_videos(videos):
+    LAST_EDGE_LAYER = FLAGS.layer_index
+    NUM_BINS = FLAGS.num_bins
+    DELTA_VALUE = FLAGS.delta_value
+    codec_path = 'huffman_encoding_config/' + 'layer' + str(LAST_EDGE_LAYER) + '/' + 'num_bins_' + str(NUM_BINS)
+    delta_hist = analysis.load_huff_dictionary(codec_path + '/delta_hist')
+    delta_codec = HuffmanCodec.from_frequencies(delta_hist)
+    frame_one_hist = analysis.load_huff_dictionary(codec_path + '/frame_one_hist')
+    frame_one_codec = HuffmanCodec.from_frequencies(frame_one_hist)
+    codecs = delta_codec, frame_one_codec
+
     for i in range(len(videos)):
         print('Classifying: ', videos[i])
-        MSE = classify_video(videos[i], write=False)
+        MSE = classify_video(videos[i], codecs, write=False)
         send(RESET)
         results_path = "Results" + '/layer' + str(LAST_EDGE_LAYER) + '/num_bins_' + str(NUM_BINS) + '/delta_value' \
                        + str(DELTA_VALUE)
@@ -167,29 +157,27 @@ def classify_list_of_videos(videos):
             myfile.write(result)
 
 
-def classify_video(path_to_file, write=False):
+def classify_video(path_to_file, codecs, write=False):
     print('Classifying Video frame by fame')
+    LAST_EDGE_LAYER = FLAGS.layer_index
+    NUM_BINS = FLAGS.num_bins
+    DELTA_VALUE = FLAGS.delta_value
     MSE = []
-    # dumps frames into file
-    # number_of_frames = analysis.read_in_all_frames(path_to_file)
-    # number_of_frames = 299
-    fps, number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
-    # number_of_frames = analysis.read_in_frame_per_second(path_to_file)
-    PREVIOUS_ARRAY = None
+    frame_one_codec = codecs[1]
+    delta_codec = codecs[0]
 
-    # incept = torchvision.models.inception_v3(pretrained=True)
-    incept.eval() # put mocel into evaluation mode
+    fps, number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
+    PREVIOUS_ARRAY = None
+    incept.eval()  # put model into evaluation mode
 
     for i in range(int(number_of_frames / fps)):
-        # img = analysis.read_in_frame_number_from_file(i)
-
         try:
             img = analysis.read_in_frame_from_video(path_to_file, i * fps, write=write)
         except Exception as e:
             print(e)
             break
 
-        edge_out = analysis.SplitComputation.forward(self=incept, #pretrained model
+        edge_out = analysis.SplitComputation.forward(self=incept,  # pretrained model
                                                      x=Variable(img),
                                                      start=0,
                                                      end=LAST_EDGE_LAYER)
@@ -210,7 +198,7 @@ def classify_video(path_to_file, write=False):
             MSE.append(error)
         else:
             input_to_encoder = edge_out.data.numpy().squeeze(0)
-            encoded_edge_output = analysis.encode(input_to_encoder,NUM_BINS, min_num=-8,
+            encoded_edge_output = analysis.encode(input_to_encoder, NUM_BINS, min_num=-8,
                                                   max_num=8)
             huff_encoded_edge_output = frame_one_codec.encode(encoded_edge_output.flatten().astype('int8'))
             send(huff_encoded_edge_output)
@@ -222,6 +210,7 @@ def classify_video(path_to_file, write=False):
     return MSE
 
 
+# USED FOR TESTING
 def classify_on_random_images(path_to_data_set, number_of_images_to_check):
     print('classifying images at: ', path_to_data_set)
 
@@ -241,9 +230,11 @@ def classify_on_random_images(path_to_data_set, number_of_images_to_check):
         classify_one_image(full_path_to_image)
 
 
+# USED FOR TESTING
 def classify_one_image(path_to_image):
     print('Classifying one image')
-    # analysis.read_first_frame(FLAGS)
+    LAST_EDGE_LAYER = FLAGS.layer_index
+    NUM_BINS = FLAGS.num_bins
     img = analysis.load_in_image(path_to_image)
 
     incept = torchvision.models.inception_v3(pretrained=True)
@@ -261,13 +252,10 @@ def classify_one_image(path_to_image):
     send(encoded_edge_output)
 
 
-def classify_video_without_splitting(path_to_file, class_number):
-    # number_of_frames = 299
+def classify_video_without_splitting(path_to_file, class_index_number):
     fps, number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
     print(fps, number_of_frames)
-    # number_of_frames = analysis.read_in_frame_per_second(path_to_file)
 
-    # incept = torchvision.models.inception_v3(pretrained=True)
     incept.eval()
     passCount = 0
     failCount = 0
@@ -293,11 +281,10 @@ def classify_video_without_splitting(path_to_file, class_number):
 
         match = False
         print(labels[fc_out.data.numpy().argmax()])
-        # num = FLAGS.num_top_predictions + 1
 
         for i in range(1, 6):
             print('Number ', i, ': ', labels[sort[0][-i]])
-            if (sort[0][-i] == class_number):
+            if (sort[0][-i] == class_index_number):
                 match = True
 
         if (match):
@@ -322,19 +309,7 @@ def classify_video_without_splitting(path_to_file, class_number):
 
 
 def send(data):
-    # print('shape: ', data.shape)
     print('Type being sent: ', type(data))
-
-    # new code for huffman
-    # arr = data.astype('int8')
-    # with open('huffman_encoding_config/delta_hist.pickle', 'rb') as handle:
-    #     delta_hist = pickle.load(handle)
-    # codec = HuffmanCodec.from_data(delta_hist)
-    # encoded = codec.encode(arr.flatten())
-    # data = encoded
-    # print(codec.get_code_table())
-
-
     print('Data being sent to server')
     # Create a TCP/IP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -364,28 +339,34 @@ def send(data):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--image_file',
-        type=str,
-        default='frames/frame0.jpg',
-        help='Absolute path to image file.'
-    )
-    parser.add_argument(
         '--frame_file',
         type=str,
         default='frames/',
-        help='Absolute path to the folder storing the frames'
-    )
-    parser.add_argument(
-        '--video_file',
-        type=str,
-        default='videos/test_vid.mp4',
-        help='Absolute path to the folder storing the video to be analysed'
+        help='Relative path to the folder storing the frames'
     )
     parser.add_argument(
         '--cat_json',
         type=str,
         default='config/categories.json',
-        help='Path to data set of images'
+        help='Path to JSON categories file '
+    )
+    parser.add_argument(
+        '--num_bins',
+        type=int,
+        default=60,
+        help='Number of bins to use in encoding'
+    )
+    parser.add_argument(
+        '--layer_index',
+        type=int,
+        default=7,
+        help='Layer index the CNN is to be partitioned at'
+    )
+    parser.add_argument(
+        '--delta_value',
+        type=int,
+        default=0.1,
+        help='Delta value to be used in encoding data'
     )
 
     FLAGS, unparsed = parser.parse_known_args()

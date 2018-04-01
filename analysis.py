@@ -72,7 +72,7 @@ class SplitComputation(Inception3):
 
 
 def get_fps_and_number_of_frames(path_to_video):
-    print('finding Nunber of frames')
+    print('finding Number of frames')
     cap = cv2.VideoCapture(path_to_video)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -94,7 +94,7 @@ def read_in_frame_from_video(path_to_video, frameNumber, write=False):
 
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225] # Numbers as per example on Pytorch website
+        std=[0.229, 0.224, 0.225]  # Numbers as per example on Pytorch website
     )
     preprocess = transforms.Compose([
         transforms.Resize((299, 299)),
@@ -189,7 +189,7 @@ def read_in_frame_number_from_file(frameNumber):
     return img
 
 
-def encode(array,num_bins, min_num=-8, max_num=8):
+def encode(array, num_bins, min_num=-8, max_num=8):
     print('Encoding..')
     arr = array
     arr = np.clip(arr, min_num, max_num)
@@ -244,8 +244,7 @@ def load_huff_dictionary(path):
     return hist
 
 
-def server_run(input, last_edge_layer, incept, class_label = 105):
-    # incept = torchvision.models.inception_v3(pretrained=True)
+def server_run(input, last_edge_layer, incept, class_label=105):
     incept.eval()
     fc_out = SplitComputation.forward(self=incept, x=Variable(input),
                                       start=last_edge_layer, end=None)

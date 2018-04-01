@@ -12,10 +12,6 @@ FLAGS = None
 PREVIOUS_ARRAY = None
 incept = torchvision.models.inception_v3(pretrained=True)
 
-# Parameters to set
-LAST_EDGE_LAYER = 7  # 7 is cut at F.max_pool2d
-TRAIN_DELTA_TREE = True
-NUM_BINS = 35
 files = [
     "videos/n01443537/goldfish_2.mp4",
     "videos/n01910747/jelly_fish_1.mp4",
@@ -24,24 +20,28 @@ files = [
     "videos/n02342885/hamster_1.mp4",
     "videos/n02510455/panda_3.mp4",
     "videos/n02676566/guitar_4.mp4",
-    "videos/n03452741/piano_2.mp4",
+    "videos/n03452741/piano_2.mp4"
 ]
 
 
 def main():
-    # train_huff_tree(delta_encoded_edge_output, 'delta_hist', write_to_json=True)
-    # run_edge_computation(FLAGS.video_file, write_to_json=True)
     for i in range(len(files)):
-        run_edge_computation(files[i], write_to_json=True)
+        run_edge_computation(files[i], True, write_to_json=True)
+    # new code
+    for i in range(len(files)):
+        run_edge_computation(files[i], False, write_to_json=True)
 
 
-def run_edge_computation(path_to_file, write=False, write_to_json=False):
+def run_edge_computation(path_to_file, train_delta_tree, write=False, write_to_json=False):
     print('Running edge computation on :', path_to_file)
+
+    LAST_EDGE_LAYER = FLAGS.layer_index
+    NUM_BINS = FLAGS.num_bins
+
     # dumps frames into file
     fps, number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
     PREVIOUS_ARRAY = None
 
-    # incept = torchvision.models.inception_v3(pretrained=True)
     incept.eval()
 
     for i in range(number_of_frames):
@@ -56,9 +56,9 @@ def run_edge_computation(path_to_file, write=False, write_to_json=False):
                                                      start=0,
                                                      end=LAST_EDGE_LAYER)
 
-        if PREVIOUS_ARRAY is not None and TRAIN_DELTA_TREE is True:
+        if PREVIOUS_ARRAY is not None and train_delta_tree is True:
             input_to_compute_deltas = edge_out.data.numpy().squeeze(0)
-            delta_edge_output = analysis.compute_delta(PREVIOUS_ARRAY, input_to_compute_deltas,0.1 )
+            delta_edge_output = analysis.compute_delta(PREVIOUS_ARRAY, input_to_compute_deltas, 0.1)
 
             delta_encoded_edge_output = analysis.encode(delta_edge_output, min_num=-8,
                                                         max_num=8, num_bins=NUM_BINS)
@@ -75,7 +75,9 @@ def run_edge_computation(path_to_file, write=False, write_to_json=False):
 
 
 def train_huff_tree(array, file_name, write_to_json=False):
-    # print('Training huff tree dictionary')
+    LAST_EDGE_LAYER = FLAGS.layer_index
+    NUM_BINS = FLAGS.num_bins
+
     path = 'huffman_encoding_config/' + 'layer' + str(LAST_EDGE_LAYER) + '/' + 'num_bins_' + str(NUM_BINS)
     file_path = path + '/' + file_name
     # create path if does not exists
@@ -86,7 +88,7 @@ def train_huff_tree(array, file_name, write_to_json=False):
             hist = pickle.load(handle)
     except FileNotFoundError:
         print('No current histogram found')
-        hist = Counter(range(-NUM_BINS, NUM_BINS)) # set each possible symbol to have a probability of 1
+        hist = Counter(range(-NUM_BINS, NUM_BINS))  # set each possible symbol to have a probability of 1
 
     new_array = array.flatten().tolist()
 
@@ -103,10 +105,16 @@ def train_huff_tree(array, file_name, write_to_json=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--video_file',
-        type=str,
-        default='videos/test_vid.mp4',
-        help='Absolute path to the folder storing the video to be analysed'
+        '--num_bins',
+        type=int,
+        default=60,
+        help='set the number of bins to train tree for'
+    )
+    parser.add_argument(
+        '--layer_index',
+        type=int,
+        default=7,
+        help='the layer the CNN is being partitioned at'
     )
 
     FLAGS, unparsed = parser.parse_known_args()
