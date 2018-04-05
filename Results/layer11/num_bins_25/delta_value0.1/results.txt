@@ -49,4 +49,3 @@ file: videos/n02342885/hamster_4.mp4, %Passed: 33.33333333333333, avg_byte_size:
 file: videos/n02342885/hamster_5.mp4, %Passed: 47.61904761904761, avg_byte_size: 44169.92857142857, layer: 11, num_bins_used: 25, Delta Value: 0.1
 file: videos/n02364673/guinea_pig_1.mp4, %Passed: 62.698412698412696, avg_byte_size: 50491.63492063492, layer: 11, num_bins_used: 25, Delta Value: 0.1
 file: videos/n02364673/guinea_pig_2.mp4, %Passed: 75.0, avg_byte_size: 45070.98529411765, layer: 11, num_bins_used: 25, Delta Value: 0.1
-file: videos/n01443537/goldfish_1.mp4, %Passed: 69.89247311827957, avg_byte_size: 48699.408602150535, layer: 11, num_bins_used: 25, Delta Value: 0.1

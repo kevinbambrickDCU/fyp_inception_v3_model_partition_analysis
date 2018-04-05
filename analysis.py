@@ -244,11 +244,14 @@ def load_huff_dictionary(path):
     return hist
 
 
-def server_run(input, last_edge_layer, incept, class_label=105):
+def server_run(input, last_edge_layer, incept):
     incept.eval()
     fc_out = SplitComputation.forward(self=incept, x=Variable(input),
                                       start=last_edge_layer, end=None)
+    return fc_out
 
+
+def classify_server_run(fc_out, class_label=105) :
     sort = fc_out.data.numpy().argsort()
 
     try:

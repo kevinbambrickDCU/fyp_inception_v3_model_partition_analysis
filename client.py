@@ -11,9 +11,12 @@ import os
 import random
 import requests
 import errno
+import numpy as np
+import pickle
 
 from torch.autograd import Variable
 from dahuffman import HuffmanCodec
+from tempfile import TemporaryFile
 
 FLAGS = None
 USER_DELTA = True
@@ -100,7 +103,20 @@ def main():
         "videos/n02364673/guinea_pig_1.mp4",
         "videos/n02364673/guinea_pig_2.mp4"
     ]
-    classify_list_of_videos(videos)
+    # classify_list_of_videos(videos)
+
+    test_videos = [
+        "videos/n01882714/koala_1.mp4",
+        "videos/n02510455/panda_1.mp4",
+        "videos/n02676566/guitar_2.mp4",
+        "videos/n02133161/bear_1.mp4",
+        "videos/n02110958/pug_3.mp4"
+    ]
+
+    # classify_list_of_videos_without_partition(test_videos, save_results = False,  write = True)
+    classify_list_of_videos(test_videos)
+
+
 
 
 def delete_previous_frames(path_to_frames):
@@ -114,7 +130,7 @@ def delete_previous_frames(path_to_frames):
             print(e)
 
 
-def classify_list_of_videos_without_partition(videos):
+def classify_list_of_videos_without_partition(videos, save_results = True, write = False):
     index = 0
     for i in range(len(videos)):
         class_id = videos[i].split('/')[1]
@@ -125,7 +141,7 @@ def classify_list_of_videos_without_partition(videos):
                 index = cats[j]['index']
         print(index)
         print('classifying: ', videos[i])
-        classify_video_without_splitting(videos[i], index)
+        classify_video_without_splitting(videos[i], index, save_results = save_results, write=write)
 
 
 def classify_list_of_videos(videos):
@@ -252,7 +268,7 @@ def classify_one_image(path_to_image):
     send(encoded_edge_output)
 
 
-def classify_video_without_splitting(path_to_file, class_index_number):
+def classify_video_without_splitting(path_to_file, class_index_number, save_results = True,  write = False):
     fps, number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
     print(fps, number_of_frames)
 
@@ -269,6 +285,18 @@ def classify_video_without_splitting(path_to_file, class_index_number):
 
         fc_out = inception.Inception3.forward(self=incept, x=Variable(img))
         sort = fc_out.data.numpy().argsort()
+
+        # write output of fully connected to file for analysis
+        if write is True:
+            class_id = path_to_file.split('/')[1]
+            video_file_name = path_to_file.split('/')[2]
+            video_name  = video_file_name.split('.')[0]
+            outfile = TemporaryFile()
+            fc_path = 'Results/fc_results/'+class_id+'/'
+            if not os.path.isdir(fc_path):
+                os.makedirs(fc_path)
+            np.save(fc_path+video_name+'_'+str(i), fc_out.data.numpy())
+
 
         try:
             # read labels from file
@@ -300,12 +328,13 @@ def classify_video_without_splitting(path_to_file, class_index_number):
         print('Number Failed: ', failCount)
 
     # PRINT RESULTS
-    print('failed frames: ', failed_frames)
-    passRate = (passCount / (failCount + passCount)) * 100
-    print('percentage of passed: ', passRate)
-    result = 'file: ' + path_to_file + ', %Passed: ' + str(passRate) + '\n'
-    with open("Results/non_split_results.txt", "a") as myfile:
-        myfile.write(result)
+    if save_results:
+        print('failed frames: ', failed_frames)
+        passRate = (passCount / (failCount + passCount)) * 100
+        print('percentage of passed: ', passRate)
+        result = 'file: ' + path_to_file + ', %Passed: ' + str(passRate) + '\n'
+        with open("Results/non_split_results.txt", "a") as myfile:
+            myfile.write(result)
 
 
 def send(data):

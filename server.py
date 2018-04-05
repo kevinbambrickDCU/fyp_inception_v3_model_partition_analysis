@@ -9,7 +9,7 @@ import errno
 import argparse
 
 from dahuffman import HuffmanCodec
-from analysis import server_run, decode_delta, decode, load_huff_dictionary
+from analysis import server_run, decode_delta, decode, load_huff_dictionary, classify_server_run
 
 FLAGS = None
 
@@ -35,11 +35,20 @@ def main():
     LAST_EDGE_LAYER = FLAGS.layer_index
     NUM_BINS = FLAGS.num_bins
     DELTA_VALUE = FLAGS.delta_value
+    save_results = FLAGS.save_results
+    analyse_fc_results = FLAGS.compare_fc
+
+    print('Number of bins: ', NUM_BINS)
+    print('DELTA VALUE: ', DELTA_VALUE)
+    print('Last edge index: ', LAST_EDGE_LAYER)
+    print('Saving Results: ', save_results)
 
     if (LAST_EDGE_LAYER == 7):
         RESHAPE_ARRAY_DIMENSIONS = [192, 35, 35]
     elif (LAST_EDGE_LAYER == 11):
         RESHAPE_ARRAY_DIMENSIONS = [768, 17, 17]
+    elif (LAST_EDGE_LAYER == 6):
+        RESHAPE_ARRAY_DIMENSIONS = [192, 71, 71]
     else:
         RESHAPE_ARRAY_DIMENSIONS = None
         print("Reshape dimensions not defined for layer being partitioned")
@@ -124,7 +133,20 @@ def main():
         "videos/n02364673/guinea_pig_1.mp4",
         "videos/n02364673/guinea_pig_2.mp4"
     ]
+
+    # for analysing fc output
+    if analyse_fc_results is True:
+        test_videos = [
+            "videos/n01882714/koala_1.mp4",
+            "videos/n02510455/panda_1.mp4",
+            "videos/n02676566/guitar_2.mp4",
+            "videos/n02133161/bear_1.mp4",
+            "videos/n02110958/pug_3.mp4"
+        ]
+        videos = test_videos
+
     vid_num = 0
+    frame_number = 0
 
     # NEED TO CHECK THIS CODE WORKS FOR AUTOMATED TESTING
     cats = json.load(open('config/categories.json'))
@@ -178,14 +200,16 @@ def main():
                 results_path = "Results" + '/layer' + str(LAST_EDGE_LAYER) + '/num_bins_' + str(
                     NUM_BINS) + '/delta_value' \
                                + str(DELTA_VALUE)
-                if not os.path.isdir(results_path):
-                    try:
-                        os.makedirs(results_path)
-                    except OSError as e:
-                        if e.errno != errno.EEXIST:
-                            raise
-                with open(results_path + "/results.txt", "a") as myfile:
-                    myfile.write(result)
+
+                if save_results is True:
+                    if not os.path.isdir(results_path):
+                        try:
+                            os.makedirs(results_path)
+                        except OSError as e:
+                            if e.errno != errno.EEXIST:
+                                raise
+                    with open(results_path + "/results.txt", "a") as myfile:
+                        myfile.write(result)
 
                 # Resetting variables
                 PREVIOUS_ARRAY = None
@@ -193,6 +217,7 @@ def main():
                 passCount = 0
                 failCount = 0
                 vid_num += 1
+                frame_number = 0
 
                 # NEED TO ENSURE THIS CODE WORKS FOR AUTOMATED TESTING
                 cats = json.load(open('config/categories.json'))
@@ -208,15 +233,48 @@ def main():
                 decoded_arr = decode(arr, NUM_BINS, max_num=8, min_num=-8)
                 delta_decoded_arr = decode_delta(PREVIOUS_ARRAY, decoded_arr)
                 PREVIOUS_ARRAY = delta_decoded_arr
-                result = server_run(torch.Tensor(delta_decoded_arr), LAST_EDGE_LAYER, INCEPT, class_label=index)
+                fc_out = server_run(torch.Tensor(delta_decoded_arr), LAST_EDGE_LAYER, INCEPT)
+                result = classify_server_run(fc_out, class_label=index)
             else:
                 decoded = frame_one_codec.decode(arr)
                 arr = np.reshape(decoded, RESHAPE_ARRAY_DIMENSIONS)
 
                 decoded_arr = decode(arr, NUM_BINS, max_num=8, min_num=-8)
                 PREVIOUS_ARRAY = decoded_arr
-                result = server_run(torch.Tensor(decoded_arr), LAST_EDGE_LAYER, INCEPT, class_label=index)
+                fc_out = server_run(torch.Tensor(decoded_arr), LAST_EDGE_LAYER, INCEPT)
+                result = classify_server_run(fc_out, class_label=index)
 
+            top_five_is_the_same = '0'  # 0 for false 1 for true, str so can be written to file and easily calculate total
+            top_one_is_the_same = '0'
+            if analyse_fc_results is True:
+                video_file = videos[vid_num].split('/')[2]
+                video = video_file.split('.')[0]
+                saved_fc_dir = 'Results/fc_results/' + class_id
+                path_to_saved_fc = saved_fc_dir + '/' + video + '_' + str(frame_number) + '.npy'
+                print('looking for: ', path_to_saved_fc)
+                if os.path.isdir(saved_fc_dir):
+                    print('path exists')
+                    unencoded_fc = np.load(path_to_saved_fc)
+                    unencoded_top_five = unencoded_fc.argsort()[0][-1:-6:-1]  # Get top 5 classifications.
+                    encoded_top_five = fc_out.data.numpy().argsort()[0][-1:-6:-1]
+                    unencoded_top = unencoded_fc.argsort()[0][-1]
+                    encoded_top = fc_out.data.numpy().argsort()[0][-1]
+                    if (np.array_equal(unencoded_top_five, encoded_top_five)):
+                        top_five_is_the_same = '1'
+                    if (np.array_equal(unencoded_top, encoded_top)):
+                        top_one_is_the_same = '1'
+
+                    path_to_results = 'Results/fc_results/comparison_results/layer_' + str(LAST_EDGE_LAYER) + \
+                                      '/num_bins_' + str(NUM_BINS) + \
+                                      '/delta_value_' + str(DELTA_VALUE)
+                    fc_analysis_result = videos[vid_num] + ' ,same top five predictions ,' + top_five_is_the_same + \
+                                         ' ,same top one prediction ,' + top_one_is_the_same  + '\n'
+                    if not (os.path.isdir(path_to_results)):
+                        os.makedirs(path_to_results)
+                    with open(path_to_results + '/fc_results.txt', 'a') as myfile:
+                        myfile.write(fc_analysis_result)
+
+            frame_number += 1
             if result:
                 passCount += 1
             else:
@@ -225,6 +283,15 @@ def main():
             print('Total checked: ', passCount + failCount)
             print('Number of correct classifications: ', passCount)
             print('Number Failed: ', failCount)
+
+
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 if __name__ == '__main__':
@@ -252,6 +319,18 @@ if __name__ == '__main__':
         type=int,
         default=0.1,
         help='Delta value to be used in encoding data'
+    )
+    parser.add_argument(
+        '--save_results',
+        type=str2bool,
+        default=True,
+        help='Save the output of the test results to a file, True by default'
+    )
+    parser.add_argument(
+        '--compare_fc',
+        type=str2bool,
+        default=False,
+        help='Analyse the output of the fc layer and compare it to output without encoding'
     )
 
     FLAGS, unparsed = parser.parse_known_args()
