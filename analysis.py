@@ -21,8 +21,6 @@ last_edge_layer = 7
 
 class SplitComputation(Inception3):
     def forward(self, x, start=0, end=None):
-        print('overridden')
-
         if self.transform_input and (start == 0):
             x = x.clone()
             x[:, 0] = x[:, 0] * (0.229 / 0.5) + (0.485 - 0.5) / 0.5
@@ -102,7 +100,6 @@ def read_in_frame_from_video(path_to_video, frameNumber, write=False):
         normalize
     ])
 
-    # img = Image.open('frames/frame%d.jpg' % frameNumber)
     img = Image.fromarray(frame)
     img = preprocess(img)
     img = img.unsqueeze(0)
@@ -251,7 +248,7 @@ def server_run(input, last_edge_layer, incept):
     return fc_out
 
 
-def classify_server_run(fc_out, class_label=105) :
+def classify_server_run(fc_out, class_label=105):
     sort = fc_out.data.numpy().argsort()
 
     try:

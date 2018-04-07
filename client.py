@@ -12,11 +12,9 @@ import random
 import requests
 import errno
 import numpy as np
-import pickle
 
 from torch.autograd import Variable
 from dahuffman import HuffmanCodec
-from tempfile import TemporaryFile
 
 FLAGS = None
 USER_DELTA = True
@@ -103,7 +101,6 @@ def main():
         "videos/n02364673/guinea_pig_1.mp4",
         "videos/n02364673/guinea_pig_2.mp4"
     ]
-    # classify_list_of_videos(videos)
 
     test_videos = [
         "videos/n01882714/koala_1.mp4",
@@ -114,9 +111,7 @@ def main():
     ]
 
     # classify_list_of_videos_without_partition(test_videos, save_results = False,  write = True)
-    classify_list_of_videos(test_videos)
-
-
+    classify_list_of_videos(videos)
 
 
 def delete_previous_frames(path_to_frames):
@@ -130,7 +125,7 @@ def delete_previous_frames(path_to_frames):
             print(e)
 
 
-def classify_list_of_videos_without_partition(videos, save_results = True, write = False):
+def classify_list_of_videos_without_partition(videos, save_results=True, write=False):
     index = 0
     for i in range(len(videos)):
         class_id = videos[i].split('/')[1]
@@ -141,7 +136,7 @@ def classify_list_of_videos_without_partition(videos, save_results = True, write
                 index = cats[j]['index']
         print(index)
         print('classifying: ', videos[i])
-        classify_video_without_splitting(videos[i], index, save_results = save_results, write=write)
+        classify_video_without_splitting(videos[i], index, save_results=save_results, write=write)
 
 
 def classify_list_of_videos(videos):
@@ -193,7 +188,7 @@ def classify_video(path_to_file, codecs, write=False):
             print(e)
             break
 
-        edge_out = analysis.SplitComputation.forward(self=incept,  # pretrained model
+        edge_out = analysis.SplitComputation.forward(self=incept,  # pre-trained model
                                                      x=Variable(img),
                                                      start=0,
                                                      end=LAST_EDGE_LAYER)
@@ -204,7 +199,7 @@ def classify_video(path_to_file, codecs, write=False):
 
             delta_encoded_edge_output = analysis.encode(delta_edge_output, NUM_BINS, min_num=-8,
                                                         max_num=8)
-            # print("data being sent: ",delta_encoded_edge_output)
+
             huff_delta_encoded_edge_output = delta_codec.encode(delta_encoded_edge_output.flatten().astype('int8'))
             send(huff_delta_encoded_edge_output)
             server_decoded = analysis.decode(delta_encoded_edge_output, NUM_BINS).squeeze(0)
@@ -268,7 +263,7 @@ def classify_one_image(path_to_image):
     send(encoded_edge_output)
 
 
-def classify_video_without_splitting(path_to_file, class_index_number, save_results = True,  write = False):
+def classify_video_without_splitting(path_to_file, class_index_number, save_results=True, write=False):
     fps, number_of_frames = analysis.get_fps_and_number_of_frames(path_to_file)
     print(fps, number_of_frames)
 
@@ -290,13 +285,11 @@ def classify_video_without_splitting(path_to_file, class_index_number, save_resu
         if write is True:
             class_id = path_to_file.split('/')[1]
             video_file_name = path_to_file.split('/')[2]
-            video_name  = video_file_name.split('.')[0]
-            outfile = TemporaryFile()
-            fc_path = 'Results/fc_results/'+class_id+'/'
+            video_name = video_file_name.split('.')[0]
+            fc_path = 'Results/fc_results/' + class_id + '/'
             if not os.path.isdir(fc_path):
                 os.makedirs(fc_path)
-            np.save(fc_path+video_name+'_'+str(i), fc_out.data.numpy())
-
+            np.save(fc_path + video_name + '_' + str(i), fc_out.data.numpy())
 
         try:
             # read labels from file
@@ -324,7 +317,7 @@ def classify_video_without_splitting(path_to_file, class_index_number, save_resu
             failed_frames[failCount - 1] = failCount + passCount
         print('Checking: ', path_to_file)
         print('Total checked: ', passCount + failCount)
-        print('Number of correct classifictaions: ', passCount)
+        print('Number of correct classifications: ', passCount)
         print('Number Failed: ', failCount)
 
     # PRINT RESULTS
@@ -393,7 +386,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--delta_value',
-        type=int,
+        type=float,
         default=0.1,
         help='Delta value to be used in encoding data'
     )

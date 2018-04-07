@@ -3,6 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 
+# FROM PYTORCH VISION REPOSITORY
+# AVAILABLE AT: https://github.com/pytorch/vision/blob/master/torchvision/models/inception.py
+
 __all__ = ['Inception3', 'inception_v3']
 
 model_urls = {

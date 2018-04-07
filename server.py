@@ -148,7 +148,6 @@ def main():
     vid_num = 0
     frame_number = 0
 
-    # NEED TO CHECK THIS CODE WORKS FOR AUTOMATED TESTING
     cats = json.load(open('config/categories.json'))
     class_id = videos[vid_num].split('/')[1]
     for j in range(len(cats)):
@@ -219,7 +218,6 @@ def main():
                 vid_num += 1
                 frame_number = 0
 
-                # NEED TO ENSURE THIS CODE WORKS FOR AUTOMATED TESTING
                 cats = json.load(open('config/categories.json'))
                 class_id = videos[vid_num].split('/')[1]
                 for j in range(len(cats)):
@@ -244,7 +242,8 @@ def main():
                 fc_out = server_run(torch.Tensor(decoded_arr), LAST_EDGE_LAYER, INCEPT)
                 result = classify_server_run(fc_out, class_label=index)
 
-            top_five_is_the_same = '0'  # 0 for false 1 for true, str so can be written to file and easily calculate total
+            # 0 for false 1 for true, str so can be written to file and easily calculate total
+            top_five_is_the_same = '0'
             top_one_is_the_same = '0'
             if analyse_fc_results is True:
                 video_file = videos[vid_num].split('/')[2]
@@ -316,7 +315,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--delta_value',
-        type=int,
+        type=float,
         default=0.1,
         help='Delta value to be used in encoding data'
     )
